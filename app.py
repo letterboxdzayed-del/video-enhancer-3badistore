@@ -2,9 +2,9 @@ import os
 import subprocess
 import tempfile
 import cv2
-import imageio
 import numpy as np
 import pyotp
+import replicate
 import streamlit as st
 from PIL import Image
 
@@ -12,7 +12,7 @@ from PIL import Image
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO High-Bitrate Engine",
+    page_title="3badiJO AI Engine",
     page_icon="🎬",
     layout="centered",
 )
@@ -28,7 +28,7 @@ if "is_admin" not in st.session_state:
 
 
 def check_auth():
-    st.title("🔒 3badiJO Engine")
+    st.title("🔒 3badiJO AI Engine")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
@@ -72,153 +72,68 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO Pro Quality Engine")
+st.title("⚡ 3badiJO Replicate AI Upscaler")
 
 if st.session_state.is_admin:
-    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
+    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة AI"])
     with main_tab1:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("رفع الدقة والوضوح (High Bitrate)")
+        st.write("رفع الجودة بواسطة Replicate GPU API")
 else:
-    st.write("رفع الدقة والوضوح (High Bitrate)")
+    st.write("رفع الجودة بواسطة Replicate GPU API")
 
 
 # ==========================================
-# 3. محرك رفع الدقة الحادة (Pro Sharpen & Upscale)
+# 3. دالة المعالجة عبر Replicate
 # ==========================================
-def sharp_upscale_frame(frame):
-    # 1. مضاعفة الأبعاد (2X) للحصول على أقصى دقة للتفاصيل
-    h, w = frame.shape[:2]
-    upscaled = cv2.resize(
-        frame, (w * 2, h * 2), interpolation=cv2.INTER_LANCZOS4
-    )
-
-    # 2. استخراج الحواف الدقيقة جداً لتوضيح تفاصيل الوجه والمباني والمناظر
-    blur = cv2.GaussianBlur(upscaled, (0, 0), 3.0)
-    high_pass = cv2.subtract(upscaled, blur)
-
-    # 3. دمج الحدّة مع الحفاظ الكامل والرسمي على درجات الألوان الأصلية
-    sharp_frame = cv2.addWeighted(upscaled, 1.0, high_pass, 1.5, 0)
-
-    return sharp_frame
-
-
-def enhance_video(input_path, output_path):
-    cap = cv2.VideoCapture(input_path)
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    if fps == 0 or fps is None:
-        fps = 30
-
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-
-    # تصدير ببتريت أقصى (CRF 12) للحفاظ على جودة خرافية بدون أي بكسلة
-    writer = imageio.get_writer(
-        temp_no_audio,
-        fps=fps,
-        codec="libx264",
-        pixelformat="yuv420p",
-        ffmpeg_params=["-crf", "12", "-preset", "slow"],
-        macro_block_size=1,
-    )
-
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    frame_count = 0
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        processed_bgr = sharp_upscale_frame(frame)
-        processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
-
-        writer.append_data(processed_rgb)
-        frame_count += 1
-
-        if total_frames > 0 and frame_count % 15 == 0:
-            progress = int((frame_count / total_frames) * 100)
-            progress_bar.progress(min(progress, 100))
-            status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
-
-    cap.release()
-    writer.close()
-
-    # دمج الصوت الأصلي تلقائياً
+def upscale_image_with_replicate(image_path):
+    """
+    إرسال الملف لـ Replicate وتطبيق Real-ESRGAN بذكاء اصطناعي حقيقي.
+    """
     try:
-        import imageio_ffmpeg
-
-        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        cmd = [
-            ffmpeg_exe,
-            "-y",
-            "-i",
-            temp_no_audio,
-            "-i",
-            input_path,
-            "-c:v",
-            "copy",
-            "-c:a",
-            "aac",
-            "-map",
-            "0:v:0",
-            "-map",
-            "1:a:0?",
-            output_path,
-        ]
-        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except Exception:
-        os.replace(temp_no_audio, output_path)
+        with open(image_path, "rb") as file:
+            output = replicate.run(
+                "nightmareai/real-esrgan:424308634d02e05f0217578351543716a5c1f5139097d81a8b0c4a4e157796d4",
+                input={
+                    "image": file,
+                    "scale": 2,
+                    "face_enhance": True,  # تحسين ملامح الوجه وتنقيتها
+                },
+            )
+        return output
+    except Exception as e:
+        st.error(
+            f"حدث خطأ أثناء الاتصال بـ Replicate: {e}\nتأكد من إضافة REPLICATE_API_TOKEN في Secrets بشكل صحيح."
+        )
+        return None
 
 
 # ==========================================
-# 4. الواجهة والتحميل
+# 4. الواجهة والرفع
 # ==========================================
 uploaded_file = st.file_uploader(
-    "ارفع فيديو أو صورة:", type=["mp4", "mov", "jpg", "png"]
+    "ارفع صورة لمعالجتها بالـ AI الخارجي:",
+    type=["jpg", "png", "jpeg"],
 )
 
 if uploaded_file is not None:
-    is_video = uploaded_file.name.split(".")[-1].lower() in ["mp4", "mov"]
+    image = Image.open(uploaded_file)
+    st.image(image, caption="الصورة الأصلية", use_column_width=True)
 
-    if is_video:
-        st.video(uploaded_file)
-        if st.button("رفع الجودة بأقصى وضوح 🔥"):
-            tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            tfile.write(uploaded_file.read())
+    if st.button("رفع الجودة بالـ AI الخارجي 🔥"):
+        with st.spinner("جاري المعالجة بالسيرفر السريع ورفع الجودة..."):
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=".png"
+            ) as tmp_file:
+                image.save(tmp_file.name)
+                result_url = upscale_image_with_replicate(tmp_file.name)
 
-            output_file = tempfile.NamedTemporaryFile(
-                delete=False, suffix=".mp4"
-            ).name
-
-            with st.spinner("جاري معالجة الدقة والتفاصيل..."):
-                enhance_video(tfile.name, output_file)
-
-            st.success("تمت المعالجة بنجاح!")
-            st.video(output_file)
-
-            with open(output_file, "rb") as f:
-                st.download_button(
-                    "📥 تحميل الفيديو المحسن (MP4)",
-                    f,
-                    file_name="3badiJO_UltraHD.mp4",
-                    mime="video/mp4",
+            if result_url:
+                st.success("تمت المعالجة بنجاح عبر كرت الشاشة الخارجي!")
+                st.image(
+                    result_url,
+                    caption="النتيجة بعد الـ AI",
+                    use_column_width=True,
                 )
-
-    else:
-        image = Image.open(uploaded_file)
-        img_array = np.array(image.convert("RGB"))
-        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-
-        enhanced_bgr = sharp_upscale_frame(img_bgr)
-        enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
-
-        st.subheader("مقارنة الجودة:")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption="قبل", use_column_width=True)
-        with col2:
-            st.image(enhanced_rgb, caption="بعد", use_column_width=True)
