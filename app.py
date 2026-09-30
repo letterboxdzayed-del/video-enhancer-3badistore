@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import cv2
 import imageio
@@ -8,7 +9,7 @@ import streamlit as st
 from PIL import Image
 
 # ==========================================
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
     page_title="3badiJO Engine - VIP 4K",
@@ -16,12 +17,9 @@ st.set_page_config(
     layout="centered",
 )
 
-# ==========================================
-# 2. نظام الأمان والمفتاح السرّي
-# ==========================================
 ADMIN_PASSWORD = "zayed321abadi"
 USER_SECRET = "JBSWY3DPEHPK3PXP"
-totp = pyotp.TOTP(USER_SECRET, interval=300)  # 5 دقائق
+totp = pyotp.TOTP(USER_SECRET, interval=300)
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -67,7 +65,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 3. لوحة المؤسس والواجهة
+# 2. الواجهة الرئيسية
 # ==========================================
 st.sidebar.success(
     "🟢 أهلاً بك"
@@ -88,53 +86,64 @@ if st.session_state.is_admin:
         st.subheader("لوحة المؤسس - الرمز الحالي للمشتركين")
         current_otp = totp.now()
         st.success(f"🔑 الباسورد الحالي للمشتركين هو:\n# **{current_otp}**")
-        st.info(
-            "أعط هذا الرمز للمشترك ليدخل به من تبويب المشتركين. ينتهي الرمز وتتغير قيمته تلقائياً كل 5 دقائق."
-        )
+        st.info("الرمز يتغير تلقائياً كل 5 دقائق.")
     with main_tab2:
         st.write("استخدم المحرك لتعديل ومعالجة الفيديوهات والصور:")
 else:
     st.write(
-        "رفع الجودة، ضبط الإضاءة والتباين تلقائياً مع تنعيم الانتقالات، وتطبيق الفلاتر السينمائية."
+        "رفع الجودة، معالجة البشرة، حماية المناطق المعتمة من التشويش، والحفاظ على الصوت والألوان الأصلية."
     )
 
 
 # ==========================================
-# 4. محرك تحسين الفريمات والانتقال الناعم (Smooth Adjustment)
+# 3. محرك المعالجة الذكي للوجه والألوان والحدّة
 # ==========================================
-def enhance_frame(
-    frame, apply_cc=True, target_sharpness=1.8, clip_limit=2.8, alpha_fade=1.0
-):
-    """تحسين الجودة والحدّة والتباين مع دعم التنعيم التدريجي (Fade)."""
-    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
+def smart_enhance_frame(frame, apply_cc=True):
+    """شاربين قوي للوجه والبشرة + تنعيم وتقليل النويز بالخلفية والظلال."""
 
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
+    # 1. تحويل الصورة لمساحة ألوان YCrCb للتعرف على درجة لون البشرة والسطوع
+    ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+    y, cr, cb = cv2.split(ycrcb)
 
-    # دمج التباين القديم والجديد بنعومة إذا لزم
-    cl = cv2.addWeighted(cl, alpha_fade, l, 1.0 - alpha_fade, 0)
+    # قناع استهداف البشرة (Skin Mask)
+    skin_mask = cv2.inRange(ycrcb, (0, 133, 77), (255, 173, 127))
+    skin_mask = cv2.GaussianBlur(skin_mask, (9, 9), 0) / 255.0
 
-    enhanced_lab = cv2.merge((cl, a, b))
-    enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+    # قناع المناطق المظلمة (Shadows Mask)
+    shadow_mask = np.where(y < 60, 1.0, 0.0)
+    shadow_mask = cv2.GaussianBlur(shadow_mask.astype(np.float32), (15, 15), 0)
 
-    # حدّة ممتازة لتوضيح التفاصيل
-    gaussian_3 = cv2.GaussianBlur(enhanced_bgr, (0, 0), 2.0)
-    sharpened = cv2.addWeighted(
-        enhanced_bgr, 1.0 + target_sharpness, gaussian_3, -target_sharpness, 0
-    )
+    # 2. تحسين الحدة (Sharpness) الموجهة
+    gaussian = cv2.GaussianBlur(frame, (0, 0), 2.0)
+    high_sharp = cv2.addWeighted(frame, 2.2, gaussian, -1.2, 0)  # حدّة قوية للوجه
+    soft_frame = cv2.fastNlMeansDenoisingColored(
+        frame, None, 3, 3, 7, 21
+    )  # تنعيم خفيف للمناطق المعتمة
 
+    # 3. دمج الحدة حسب المنطقة (بشرة/خلفية/ظلال)
+    skin_mask_3ch = cv2.merge([skin_mask, skin_mask, skin_mask])
+    shadow_mask_3ch = cv2.merge([shadow_mask, shadow_mask, shadow_mask])
+
+    # تطبيق الشاربين القوي على البشرة والشاربين المعتدل لباقي التفاصيل
+    enhanced = frame * (1.0 - skin_mask_3ch) + high_sharp * skin_mask_3ch
+
+    # تقليل النويز بالمناطق المعتمة
+    enhanced = enhanced * (1.0 - shadow_mask_3ch) + soft_frame * shadow_mask_3ch
+    enhanced = np.clip(enhanced, 0, 255).astype(np.uint8)
+
+    # 4. تحسين الألوان المحافظ (Vibrance & Color Grading)
     if apply_cc:
-        sharpened = sharpened.astype(np.float32)
-        sharpened[:, :, 2] *= 1.12  # تعزيز اللون الأحمر/الدافئ
-        sharpened[:, :, 1] *= 1.03
-        sharpened[:, :, 0] *= 0.92
-        sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
+        hsv = cv2.cvtColor(enhanced, cv2.COLOR_BGR2HSV).astype(np.float32)
+        # رفع التشبّع بنسبة معتدلة بدون إتلاف الألوان الأصلية
+        hsv[:, :, 1] *= 1.15
+        hsv[:, :, 2] *= 1.05
+        hsv = np.clip(hsv, 0, 255).astype(np.uint8)
+        enhanced = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-    return sharpened
+    return enhanced
 
 
-def process_video_smart(input_path, output_path, apply_cc=True):
+def process_video_with_audio(input_path, output_path, apply_cc=True):
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     if fps == 0 or fps is None:
@@ -145,18 +154,20 @@ def process_video_smart(input_path, output_path, apply_cc=True):
 
     new_w, new_h = width * 2, height * 2
 
-    # تجهيز كاتب الفيديو عبر imageio بترميز H.264
+    # فيديو مؤقت بدون صوت
+    temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
     writer = imageio.get_writer(
-        output_path, fps=fps, codec="libx264", quality=8, pixelformat="yuv420p"
+        temp_no_audio,
+        fps=fps,
+        codec="libx264",
+        quality=8,
+        pixelformat="yuv420p",
     )
 
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     frame_count = 0
-    interval = 5  # تحديث التباين كل 5 فريمات
-    current_clip_limit = 2.8
-    target_clip_limit = 2.8
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -166,35 +177,9 @@ def process_video_smart(input_path, output_path, apply_cc=True):
         resized_frame = cv2.resize(
             frame, (new_w, new_h), interpolation=cv2.INTER_CUBIC
         )
-
-        # تحسين التباين كل 5 فريمات والتعديل التدريجي (Fade) بينها
-        step_in_interval = frame_count % interval
-        if step_in_interval == 0:
-            gray = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2GRAY)
-            mean_brightness = np.mean(gray)
-            # احتساب التباين بناءً على سطوع الفريم
-            if mean_brightness < 80:
-                target_clip_limit = 3.2
-            elif mean_brightness > 180:
-                target_clip_limit = 2.0
-            else:
-                target_clip_limit = 2.7
-
-        # الانتقال التدريجي الناعم (Fade Transition)
-        alpha = (step_in_interval + 1) / float(interval)
-        active_clip_limit = (
-            1 - alpha
-        ) * current_clip_limit + alpha * target_clip_limit
-
-        if step_in_interval == interval - 1:
-            current_clip_limit = target_clip_limit
-
-        processed_bgr = enhance_frame(
-            resized_frame, apply_cc=apply_cc, clip_limit=active_clip_limit
-        )
-
-        # تحويل BGR إلى RGB الحقيقي للعرض بالفيديو
+        processed_bgr = smart_enhance_frame(resized_frame, apply_cc=apply_cc)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
+
         writer.append_data(processed_rgb)
 
         frame_count += 1
@@ -206,18 +191,47 @@ def process_video_smart(input_path, output_path, apply_cc=True):
     cap.release()
     writer.close()
 
+    # دمج الصوت الأصلي مع الفيديو الجديد باستعمال imageio-ffmpeg
+    try:
+        import imageio_ffmpeg
+
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        cmd = [
+            ffmpeg_exe,
+            "-y",
+            "-i",
+            temp_no_audio,
+            "-i",
+            input_path,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0?",
+            output_path,
+        ]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        # في حال عدم وجود مسار صوت بالفيديو الأصلي
+        os.replace(temp_no_audio, output_path)
+
 
 # ==========================================
-# 5. واجهة المعالجة
+# 4. خيارات رفع ومعالجة الملفات
 # ==========================================
-mode = st.radio("اختر خيار التعديل:", ["تحسين جودة 4K فقط", "4K + فلتر سينمائي"])
+mode = st.radio(
+    "اختر خيار التعديل:", ["تحسين جودة 4K ذكي", "4K ذكي + تحسين ألوان سينمائي"]
+)
 uploaded_file = st.file_uploader(
     "ارفع فيديو أو صورة للتعديل:", type=["mp4", "mov", "jpg", "png"]
 )
 
 if uploaded_file is not None:
     is_video = uploaded_file.name.split(".")[-1].lower() in ["mp4", "mov"]
-    apply_cc = mode == "4K + فلتر سينمائي"
+    apply_cc = mode == "4K ذكي + تحسين ألوان سينمائي"
 
     if is_video:
         st.video(uploaded_file)
@@ -229,17 +243,19 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري رفع الجودة وتطبيق الانتقال الناعم للفريمات..."):
-                process_video_smart(tfile.name, output_file, apply_cc=apply_cc)
+            with st.spinner(
+                "جاري تحسين الجودة، ضبط حدّة الوجه، حماية الخلفيات، ودمج الصوت..."
+            ):
+                process_video_with_audio(tfile.name, output_file, apply_cc=apply_cc)
 
-            st.success("تمت المعالجة بنجاح! شاهد أو حمل الفيديو المحسن:")
+            st.success("تمت المعالجة بنجاح!")
             st.video(output_file)
 
             with open(output_file, "rb") as f:
                 st.download_button(
                     "📥 تحميل الفيديو المحسن (MP4)",
                     f,
-                    file_name="3badiJO_4K.mp4",
+                    file_name="3badiJO_4K_Pro.mp4",
                     mime="video/mp4",
                 )
 
@@ -252,7 +268,7 @@ if uploaded_file is not None:
         resized_img = cv2.resize(
             img_bgr, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC
         )
-        enhanced_bgr = enhance_frame(resized_img, apply_cc=apply_cc)
+        enhanced_bgr = smart_enhance_frame(resized_img, apply_cc=apply_cc)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة (قبل / بعد):")
@@ -262,6 +278,6 @@ if uploaded_file is not None:
         with col2:
             st.image(
                 enhanced_rgb,
-                caption="بعد تحسين الجودة والـ 4K",
+                caption="بعد التعديل والـ 4K",
                 use_column_width=True,
             )
