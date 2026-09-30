@@ -1,59 +1,126 @@
-import streamlit as st
-import replicate
 import os
+import tempfile
+import pyotp
+import replicate
+import streamlit as st
 
-# إعداد مفتاح API الخاص بـ Replicate (يفضل وضعه في st.secrets)
-REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
+# ==========================================
+# 1. إعدادات الصفحة والأمان
+# ==========================================
+st.set_page_config(
+    page_title="3badiJO AI Engine",
+    page_icon="🎬",
+    layout="centered",
+)
 
-if not REPLICATE_API_TOKEN:
-    st.warning("الرجاء إضافة REPLICATE_API_TOKEN في إعدادات Secrets الخاصة بـ Streamlit.")
+ADMIN_PASSWORD = "zayed321abadi"
+USER_SECRET = "JBSWY3DPEHPK3PXP"
+totp = pyotp.TOTP(USER_SECRET, interval=300)
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
+
+def check_auth():
+    st.title("🔒 3badiJO AI Engine")
+    tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
+
+    with tab1:
+        user_code = st.text_input(
+            "رمز الوصول:", type="password", key="user_input"
+        )
+        if st.button("دخول", key="btn_user"):
+            if totp.verify(user_code):
+                st.session_state.authenticated = True
+                st.session_state.is_admin = False
+                st.rerun()
+            else:
+                st.error("الرمز غير صحيح!")
+
+    with tab2:
+        admin_pass = st.text_input(
+            "كلمة سر المؤسس:", type="password", key="admin_input"
+        )
+        if st.button("دخول كـ مؤسس", key="btn_admin"):
+            if admin_pass == ADMIN_PASSWORD:
+                st.session_state.authenticated = True
+                st.session_state.is_admin = True
+                st.rerun()
+            else:
+                st.error("كلمة السر غير صحيحة!")
+
+
+if not st.session_state.authenticated:
+    check_auth()
+    st.stop()
+
+# ==========================================
+# 2. القائمة الجانبية
+# ==========================================
+st.sidebar.success(
+    "🟢 أهلاً بك"
+    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
+)
+if st.sidebar.button("تسجيل الخروج"):
+    st.session_state.authenticated = False
+    st.session_state.is_admin = False
+    st.rerun()
+
+st.title("🎬 3badiJO Replicate Video AI")
+
+if st.session_state.is_admin:
+    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
+    with main_tab1:
+        current_otp = totp.now()
+        st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
+    with main_tab2:
+        st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
 else:
-    os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
+    st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
 
-st.title("رفع جودة الفيديو بال AI 🔥")
 
-# رفع الفيديو
-uploaded_file = st.file_uploader("قم برفع الفيديو هنا (صيغة MP4 أو MOV)", type=["mp4", "mov"])
+# ==========================================
+# 3. دالة المعالجة عبر Replicate للفيديو
+# ==========================================
+def upscale_video_with_replicate(video_path):
+    try:
+        with open(video_path, "rb") as file:
+            # هنا تم وضع المعرف الصحيح اللي نسخته
+            output = replicate.run(
+                "lucataco/real-esrgan-video:3e56ce4b57863bd03048b42bc09bdd4db20d427cca5fde9d8ae4dc60e1bb4775",
+                input={
+                    "video": file,
+                },
+            )
+        return output
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء الاتصال بـ Replicate: {e}")
+        return None
+
+
+# ==========================================
+# 4. الواجهة والرفع (فيديو فقط)
+# ==========================================
+uploaded_file = st.file_uploader(
+    "ارفع مقطع فيديو لمعالجته بالـ AI:",
+    type=["mp4", "mov"],
+)
 
 if uploaded_file is not None:
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+
     st.video(uploaded_file)
-    
-    if st.button("رفع جودة الفيديو بال AI 🔥"):
-        if not REPLICATE_API_TOKEN:
-            st.error("مفتاح API غير متاح. لا يمكن بدء المعالجة.")
-        else:
-            try:
-                with st.spinner("جاري الاتصال بخوادم Replicate ومعالجة الفيديو... قد يستغرق الأمر بعض الوقت."):
-                    # حفظ الفيديو المرفوع بشكل مؤقت ليتم إرساله للنموذج
-                    temp_video_path = "temp_input_video.mp4"
-                    with open(temp_video_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
 
-                    # ⚠️ تنبيه هام: هذا هو السطر الذي يسبب خطأ 404 إذا كان خاطئاً
-                    # يجب استبدال النص أدناه بالمعرف الدقيق والإصدار للنموذج من موقع Replicate
-                    # مثال لنموذج افتراضي (يجب تغييره حسب النموذج الذي تستخدمه):
-                    MODEL_ID = "cjwbw/video-restoration:8d50b4a78a6ff68a41766cc6a04bfd9c12513f5d9cc00a120014eeebf552e4b3"
-                    
-                    # استدعاء النموذج
-                    output = replicate.run(
-                        MODEL_ID,
-                        input={
-                            "video": open(temp_video_path, "rb"),
-                            # يمكنك إضافة أي معلمات أخرى يتطلبها النموذج هنا
-                        }
-                    )
+    if st.button("رفع جودة الفيديو بالـ AI 🔥"):
+        with st.spinner("جاري رفع الفيديو ومعالجته عبر كرت الشاشة السريع..."):
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=f".{file_ext}"
+            ) as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                result_url = upscale_video_with_replicate(tmp_file.name)
 
-                    st.success("تمت معالجة الفيديو بنجاح!")
-                    
-                    # عرض الفيديو الناتج (Replicate عادة ما يعيد رابط URL للفيديو)
-                    st.video(output)
-                    
-            except replicate.exceptions.ReplicateError as e:
-                st.error(f"حدث خطأ أثناء الاتصال بـ Replicate: {e}")
-                st.info("💡 ملاحظة: خطأ 404 يعني أن معرف النموذج المكتوب في المتغير MODEL_ID غير صحيح أو تم حذفه. تأكد من نسخه بشكل صحيح من صفحة API الخاصة بالنموذج على Replicate.")
-            except Exception as e:
-                st.error(f"حدث خطأ غير متوقع: {e}")
-            finally:
-                # تنظيف الملف المؤقت
-                if os.path.exists("temp_input_video.mp4"):
-                    os.remove("temp_input_video.mp4")
+            if result_url:
+                st.success("تمت معالجة الفيديو بنجاح!")
+                st.video(result_url)
