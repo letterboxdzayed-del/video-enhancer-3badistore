@@ -80,26 +80,39 @@ if st.session_state.is_admin:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("تحسين الجودة والألوان")
+        st.write("تحسين الجودة والتشبع العالي")
 else:
-    st.write("تحسين الجودة والألوان")
+    st.write("تحسين الجودة والتشبع العالي")
 
 
 # ==========================================
-# 3. محرك الجودة الممتازة + التشبّع الخفيف الطبيعي
+# 3. محرك الجودة القوية والتشبّع العالي (Rich Vibrant Engine)
 # ==========================================
-def clean_balanced_enhance(frame):
-    """رفع الجودة مع حدّة نظيفة وتشبّع ألوان خفيف وموزون جداً."""
-    # 1. حدّة نظيفة وممتازة للملامح
-    blur = cv2.GaussianBlur(frame, (0, 0), 2.0)
-    sharp = cv2.addWeighted(frame, 1.4, blur, -0.4, 0)
+def pro_vibrant_enhance(frame):
+    """رفع الجودة وتفاصيل الفيديو مع تشبع ألوان عالي وواضح جداً."""
+    # 1. فلتر إبراز التفاصيل والحدّة النظيفة (Bilateral Filtering)
+    detailed = cv2.bilateralFilter(frame, d=5, sigmaColor=50, sigmaSpace=50)
 
-    # 2. رفع تشبّع الألوان خفيف جداً (12% فقط) للحفاظ على طبيعة الفيديو
-    hsv = cv2.cvtColor(sharp, cv2.COLOR_BGR2HSV).astype(np.float32)
-    hsv[:, :, 1] *= 1.12  # زيادة خفيفة وناعمة للألوان بدون فاقع
+    # 2. إضافة حدّة متباينة خفيفة للحواف فقط
+    edge_detail = cv2.addWeighted(frame, 1.5, detailed, -0.5, 0)
+
+    # 3. رفع التشبّع العالي للألوان (Vibrance & Saturation Boost 40%)
+    hsv = cv2.cvtColor(edge_detail, cv2.COLOR_BGR2HSV).astype(np.float32)
+
+    # رفع التشبّع الغني
+    hsv[:, :, 1] *= 1.40
+    # ضبط الإضاءة خفيف لعدم البهتان
+    hsv[:, :, 2] *= 1.05
+
     hsv = np.clip(hsv, 0, 255).astype(np.uint8)
+    vibrant_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    # 4. تعديل التباين الخفيف لإبراز عمق الألوان (Gamma Adjustment)
+    lookUpTable = np.empty((1, 256), np.uint8)
+    for i in range(256):
+        lookUpTable[0, i] = np.clip(pow(i / 255.0, 0.90) * 255.0, 0, 255)
+
+    return cv2.LUT(vibrant_bgr, lookUpTable)
 
 
 def enhance_video(input_path, output_path):
@@ -130,13 +143,13 @@ def enhance_video(input_path, output_path):
         if not ret:
             break
 
-        processed_bgr = clean_balanced_enhance(frame)
+        processed_bgr = pro_vibrant_enhance(frame)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
         writer.append_data(processed_rgb)
         frame_count += 1
 
-        # تحديث شريط التقدم كل ثانية (كل 30 فريم)
+        # تحديث كل ثانية (كل 30 فريم)
         if total_frames > 0 and frame_count % 30 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
@@ -211,7 +224,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = clean_balanced_enhance(img_bgr)
+        enhanced_bgr = pro_vibrant_enhance(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة:")
