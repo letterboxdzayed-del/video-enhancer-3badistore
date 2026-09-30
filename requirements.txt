@@ -1,7 +1,5 @@
-streamlit
-opencv-python-headless
-numpy
-pyotp
-Pillow
-imageio
-imageio-ffmpeg
+torch
+torchvision
+realesrgan
+facexlib
+gfpgan
