@@ -1,12 +1,8 @@
 import os
-import subprocess
 import tempfile
-import cv2
-import numpy as np
 import pyotp
 import replicate
 import streamlit as st
-from PIL import Image
 
 # ==========================================
 # 1. إعدادات الصفحة والأمان
@@ -72,68 +68,59 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO Replicate AI Upscaler")
+st.title("🎬 3badiJO Replicate Video AI")
 
 if st.session_state.is_admin:
-    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة AI"])
+    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
     with main_tab1:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("رفع الجودة بواسطة Replicate GPU API")
+        st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
 else:
-    st.write("رفع الجودة بواسطة Replicate GPU API")
+    st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
 
 
 # ==========================================
-# 3. دالة المعالجة عبر Replicate
+# 3. دالة المعالجة عبر Replicate للفيديو
 # ==========================================
-def upscale_image_with_replicate(image_path):
-    """
-    إرسال الملف لـ Replicate وتطبيق Real-ESRGAN بذكاء اصطناعي حقيقي.
-    """
+def upscale_video_with_replicate(video_path):
     try:
-        with open(image_path, "rb") as file:
+        with open(video_path, "rb") as file:
             output = replicate.run(
-                "nightmareai/real-esrgan:424308634d02e05f0217578351543716a5c1f5139097d81a8b0c4a4e157796d4",
+                "cjwbw/real-esrgan:424308634d02e05f0217578351543716a5c1f5139097d81a8b0c4a4e157796d4",
                 input={
-                    "image": file,
-                    "scale": 2,
-                    "face_enhance": True,  # تحسين ملامح الوجه وتنقيتها
+                    "video": file,
+                    "fps": 0,  # الحفاظ على الـ FPS الأصلي
                 },
             )
         return output
     except Exception as e:
-        st.error(
-            f"حدث خطأ أثناء الاتصال بـ Replicate: {e}\nتأكد من إضافة REPLICATE_API_TOKEN في Secrets بشكل صحيح."
-        )
+        st.error(f"حدث خطأ أثناء الاتصال بـ Replicate: {e}")
         return None
 
 
 # ==========================================
-# 4. الواجهة والرفع
+# 4. الواجهة والرفع (فيديو فقط)
 # ==========================================
 uploaded_file = st.file_uploader(
-    "ارفع صورة لمعالجتها بالـ AI الخارجي:",
-    type=["jpg", "png", "jpeg"],
+    "ارفع مقطع فيديو لمعالجته بالـ AI:",
+    type=["mp4", "mov"],
 )
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="الصورة الأصلية", use_column_width=True)
+    file_ext = uploaded_file.name.split(".")[-1].lower()
 
-    if st.button("رفع الجودة بالـ AI الخارجي 🔥"):
-        with st.spinner("جاري المعالجة بالسيرفر السريع ورفع الجودة..."):
+    st.video(uploaded_file)
+
+    if st.button("رفع جودة الفيديو بالـ AI 🔥"):
+        with st.spinner("جاري رفع الفيديو ومعالجته عبر كرت الشاشة السريع..."):
             with tempfile.NamedTemporaryFile(
-                delete=False, suffix=".png"
+                delete=False, suffix=f".{file_ext}"
             ) as tmp_file:
-                image.save(tmp_file.name)
-                result_url = upscale_image_with_replicate(tmp_file.name)
+                tmp_file.write(uploaded_file.read())
+                result_url = upscale_video_with_replicate(tmp_file.name)
 
             if result_url:
-                st.success("تمت المعالجة بنجاح عبر كرت الشاشة الخارجي!")
-                st.image(
-                    result_url,
-                    caption="النتيجة بعد الـ AI",
-                    use_column_width=True,
-                )
+                st.success("تمت معالجة الفيديو بنجاح!")
+                st.video(result_url)
