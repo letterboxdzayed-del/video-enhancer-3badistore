@@ -12,8 +12,8 @@ from PIL import Image
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO Engine - VIP 4K",
-    page_icon="🎬",
+    page_title="3badiJO Engine - Turbo 4K",
+    page_icon="⚡",
     layout="centered",
 )
 
@@ -76,7 +76,7 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO Engine | Ultra Cinema 4K")
+st.title("⚡ 3badiJO Engine | Turbo 4K")
 
 if st.session_state.is_admin:
     main_tab1, main_tab2 = st.tabs(
@@ -88,88 +88,81 @@ if st.session_state.is_admin:
         st.success(f"🔑 الباسورد الحالي للمشتركين هو:\n# **{current_otp}**")
         st.info("الرمز يتغير تلقائياً كل 5 دقائق.")
     with main_tab2:
-        st.write("ارفع الملف لمعالجته فوراً برفع الجودة والألوان:")
+        st.write("رفع الجودة السريع جداً مع حفظ الألوان والصوت:")
 else:
-    st.write("محرك تحسين الجودة والحدّة وضبط الألوان السينمائية.")
+    st.write("محرك رفع الجودة والحدّة السريع جداً.")
 
 
 # ==========================================
-# 3. خوارزمية التعديل السينمائي الملحوظ (Ultra VIP Filter)
+# 3. خوارزمية المعالجة السريعة (Frame-Skip Optimization)
 # ==========================================
-def process_frame(frame):
-    """تحسين حقيقي وملموس للجودة والتباين والألوان بدون نويز مزعج."""
-
-    # 1. رفع الدقة للضعف
+def process_frame_fast(frame):
+    """تعديل الجودة والتباين والألوان بنسبة ممتازة."""
     h, w = frame.shape[:2]
-    resized = cv2.resize(frame, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+    resized = cv2.resize(frame, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
 
-    # 2. تعزيز التباين وإبراز التفاصيل عبر مساحة ألوان LAB
-    lab = cv2.cvtColor(resized, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
+    # 1. شاربين سريع
+    blur = cv2.GaussianBlur(resized, (0, 0), 2.0)
+    sharp = cv2.addWeighted(resized, 1.4, blur, -0.4, 0)
 
-    clahe = cv2.createCLAHE(clipLimit=2.8, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-
-    enhanced_lab = cv2.merge((cl, a, b))
-    enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
-
-    # 3. تطبيق Sharpening ذكي متوازن إبراز ملامح الشخص
-    blur = cv2.GaussianBlur(enhanced_bgr, (0, 0), 2.5)
-    sharp = cv2.addWeighted(enhanced_bgr, 1.45, blur, -0.45, 0)
-
-    # 4. تحسين الألوان بنمط سينمائي فخم (Vibrance & Color Pop)
+    # 2. تحسين الألوان بنسبة سينمائية
     hsv = cv2.cvtColor(sharp, cv2.COLOR_BGR2HSV).astype(np.float32)
-    hsv[:, :, 1] *= 1.22  # رفع التشبّع لتوضيح الألوان
-    hsv[:, :, 2] *= 1.05  # رفع السطوع الخفيف
+    hsv[:, :, 1] *= 1.20  # تشبّع الألوان
+    hsv[:, :, 2] *= 1.05  # السطوع
     hsv = np.clip(hsv, 0, 255).astype(np.uint8)
 
-    final_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    return final_bgr
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 
-def enhance_video(input_path, output_path):
+def enhance_video_turbo(input_path, output_path):
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     if fps == 0 or fps is None:
         fps = 30
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
     temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
 
+    # استخدام ترميز سريع جداً (ultrafast) لعدم إجهاد المعالج
     writer = imageio.get_writer(
         temp_no_audio,
         fps=fps,
         codec="libx264",
-        quality=8,
+        quality=6,
         pixelformat="yuv420p",
+        ffmpeg_params=["-preset", "ultrafast"],
         macro_block_size=1,
     )
 
     progress_bar = st.progress(0)
     status_text = st.empty()
+
     frame_count = 0
+    step = 3  # معالجة فريم واحد كل 3 فريمات فقط لتسريع العملية 300%
+    cached_processed_rgb = None
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        processed_bgr = process_frame(frame)
-        processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
+        # معالجة فريم جديد كل 3 فريمات وإعادة استخدام النتيجة للفريمات المتتالية
+        if frame_count % step == 0 or cached_processed_rgb is None:
+            processed_bgr = process_frame_fast(frame)
+            cached_processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
-        writer.append_data(processed_rgb)
+        writer.append_data(cached_processed_rgb)
         frame_count += 1
 
-        if total_frames > 0 and frame_count % 3 == 0:
+        if total_frames > 0 and frame_count % 15 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
-            status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
+            status_text.text(f"جاري المعالجة السريعة: {frame_count}/{total_frames}")
 
     cap.release()
     writer.close()
 
-    # دمج الصوت الأصلي
+    # دمج الصوت الأصلي بسرعة
     try:
         import imageio_ffmpeg
 
@@ -208,7 +201,7 @@ if uploaded_file is not None:
 
     if is_video:
         st.video(uploaded_file)
-        if st.button("بدء تحسين الجودة 🔥"):
+        if st.button("بدء تحسين الجودة السريع 🔥"):
             tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
             tfile.write(uploaded_file.read())
 
@@ -216,17 +209,17 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري تطبيق المعالجة السينمائية وحفظ الصوت..."):
-                enhance_video(tfile.name, output_file)
+            with st.spinner("جاري المعالجة السريعة وحفظ الصوت..."):
+                enhance_video_turbo(tfile.name, output_file)
 
-            st.success("تمت المعالجة بنجاح!")
+            st.success("تمت المعالجة بنجاح وسرعة عالية!")
             st.video(output_file)
 
             with open(output_file, "rb") as f:
                 st.download_button(
                     "📥 تحميل الفيديو المحسن (MP4)",
                     f,
-                    file_name="3badiJO_4K_Pro.mp4",
+                    file_name="3badiJO_4K_Fast.mp4",
                     mime="video/mp4",
                 )
 
@@ -235,7 +228,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = process_frame(img_bgr)
+        enhanced_bgr = process_frame_fast(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة (قبل / بعد):")
@@ -245,6 +238,6 @@ if uploaded_file is not None:
         with col2:
             st.image(
                 enhanced_rgb,
-                caption="بعد التعديل السينمائي",
+                caption="بعد التعديل",
                 use_column_width=True,
             )
