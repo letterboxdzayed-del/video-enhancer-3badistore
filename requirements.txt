@@ -1,4 +1,4 @@
-lstreamlit
+streamlit
 opencv-python-headless
 imageio
 imageio-ffmpeg
