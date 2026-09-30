@@ -80,39 +80,61 @@ if st.session_state.is_admin:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("تحسين الجودة والتشبع العالي")
+        st.write("تحسين الجودة الديناميكي")
 else:
-    st.write("تحسين الجودة والتشبع العالي")
+    st.write("تحسين الجودة الديناميكي")
 
 
 # ==========================================
-# 3. محرك الجودة القوية والتشبّع العالي (Rich Vibrant Engine)
+# 3. المحرك الديناميكي المتكيف (Adaptive & Skin-Safe Engine)
 # ==========================================
-def pro_vibrant_enhance(frame):
-    """رفع الجودة وتفاصيل الفيديو مع تشبع ألوان عالي وواضح جداً."""
-    # 1. فلتر إبراز التفاصيل والحدّة النظيفة (Bilateral Filtering)
-    detailed = cv2.bilateralFilter(frame, d=5, sigmaColor=50, sigmaSpace=50)
+def adaptive_quality_enhance(frame):
+    """معالجة ديناميكية تتكيف مع جودة الفيديو وتحمي درجات البشرة."""
+    # 1. تحويل الفريم لـ HSV للتحليل الديناميكي
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
 
-    # 2. إضافة حدّة متباينة خفيفة للحواف فقط
-    edge_detail = cv2.addWeighted(frame, 1.5, detailed, -0.5, 0)
+    # حساب متوسط التشبّع والإضاءة الحالي للفريم
+    mean_sat = np.mean(hsv[:, :, 1])
+    mean_val = np.mean(hsv[:, :, 2])
 
-    # 3. رفع التشبّع العالي للألوان (Vibrance & Saturation Boost 40%)
-    hsv = cv2.cvtColor(edge_detail, cv2.COLOR_BGR2HSV).astype(np.float32)
+    # 2. حماية ألوان البشرة (Skin Masking)
+    # نطاق درجات البشرة بالـ HSV
+    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+    upper_skin = np.array([25, 180, 255], dtype=np.uint8)
+    frame_hsv_uint8 = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    skin_mask = cv2.inRange(frame_hsv_uint8, lower_skin, upper_skin)
+    skin_mask_float = (skin_mask / 255.0)[:, :, np.newaxis]
 
-    # رفع التشبّع الغني
-    hsv[:, :, 1] *= 1.40
-    # ضبط الإضاءة خفيف لعدم البهتان
-    hsv[:, :, 2] *= 1.05
+    # 3. تعديل التشبّع ديناميكياً (كلما كان الفيديو باهت يرفع التشبع، وإذا كان مشبعاً يحافظ عليه)
+    if mean_sat < 80:
+        sat_boost = 1.22
+    elif mean_sat < 120:
+        sat_boost = 1.12
+    else:
+        sat_boost = 1.02
+
+    # تطبيق رفع التشبع على خلفية الصورة وخفضه على مناطق البشرة لتجنب الاحمرار
+    boosted_sat = hsv[:, :, 1] * sat_boost
+    protected_sat = (
+        boosted_sat * (1.0 - skin_mask_float[:, :, 0])
+    ) + (hsv[:, :, 1] * 1.02 * skin_mask_float[:, :, 0])
+    hsv[:, :, 1] = np.clip(protected_sat, 0, 255)
+
+    # تعديل الإضاءة والتباين ديناميكياً
+    if mean_val < 100:
+        hsv[:, :, 2] *= 1.08
 
     hsv = np.clip(hsv, 0, 255).astype(np.uint8)
-    vibrant_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    color_adjusted = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-    # 4. تعديل التباين الخفيف لإبراز عمق الألوان (Gamma Adjustment)
-    lookUpTable = np.empty((1, 256), np.uint8)
-    for i in range(256):
-        lookUpTable[0, i] = np.clip(pow(i / 255.0, 0.90) * 255.0, 0, 255)
+    # 4. زيادة الجودة والحدّة الذكية (Smart Dynamic Unsharp Mask)
+    gaussian = cv2.GaussianBlur(color_adjusted, (0, 0), 2.0)
+    sharpened = cv2.addWeighted(color_adjusted, 1.4, gaussian, -0.4, 0)
 
-    return cv2.LUT(vibrant_bgr, lookUpTable)
+    # دمج الحدّة بشكل ناعم لحماية التفاصيل
+    final_output = cv2.addWeighted(sharpened, 0.85, color_adjusted, 0.15, 0)
+
+    return final_output
 
 
 def enhance_video(input_path, output_path):
@@ -143,13 +165,13 @@ def enhance_video(input_path, output_path):
         if not ret:
             break
 
-        processed_bgr = pro_vibrant_enhance(frame)
+        processed_bgr = adaptive_quality_enhance(frame)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
         writer.append_data(processed_rgb)
         frame_count += 1
 
-        # تحديث كل ثانية (كل 30 فريم)
+        # تحديث شريط التقدم كل ثانية (كل 30 فريم)
         if total_frames > 0 and frame_count % 30 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
@@ -224,7 +246,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = pro_vibrant_enhance(img_bgr)
+        enhanced_bgr = adaptive_quality_enhance(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة:")
