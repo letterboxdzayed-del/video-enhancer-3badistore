@@ -74,17 +74,41 @@ if not st.session_state.authenticated:
     check_auth()
     st.stop()
 
+# ==========================================
+# 3. خيارات المؤسس (تظهر بأعلى الشاشة المباشرة)
+# ==========================================
+st.sidebar.success(
+    "🟢 أهلاً بك"
+    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
+)
+if st.sidebar.button("تسجيل الخروج"):
+    st.session_state.authenticated = False
+    st.session_state.is_admin = False
+    st.rerun()
 
-# ==========================================
-# 3. لوحة تحكم المؤسس (تظهر في القائمة الجانبية)
-# ==========================================
+st.title("⚡ 3badiJO Engine | VIP 4K Enhancement")
+
+# إذا كنت مؤسس، يظهر لك خيارين بتبويبات واضحة أعلى الشاشة
 if st.session_state.is_admin:
-    st.sidebar.markdown("---")
-    st.sidebar.header("👑 لوحة المؤسس")
-    current_otp = totp.now()
-    st.sidebar.success(f"🔑 الباسورد الحالي للمشتركين:\n# **{current_otp}**")
-    st.sidebar.caption("يتغير هذا الرمز تلقائياً كل 5 دقائق.")
-    st.sidebar.markdown("---")
+    main_tab1, main_tab2 = st.tabs(
+        ["🔑 رمز المشترك المتجدد (OTP)", "🎬 معالجة الفيديوهات والصور"]
+    )
+
+    with main_tab1:
+        st.subheader("لوحة المؤسس - الرمز الحالي للمشتركين")
+        current_otp = totp.now()
+        st.success(f"🔑 الباسورد الحالي للمشتركين هو:\n# **{current_otp}**")
+        st.info(
+            "اعط هذا الرمز للمشترك يدخل به بصفحة المشتركين. الرمز يتغير تلقائياً كل 5 دقائق."
+        )
+
+    with main_tab2:
+        st.write("استخدم المحرك لتجربة معالجة الفيديوهات رفع الجودة:")
+else:
+    # المشترك العادي يرى واجهة المعالجة فوراً
+    st.write(
+        "رفع الجودة، ضبط الإضاءة والتباين تلقائياً كل 5 فريمات، وتطبيق الفلاتر السينمائية."
+    )
 
 
 # ==========================================
@@ -118,20 +142,20 @@ def enhance_frame(frame, apply_cc=True, target_sharpness=1.5):
 def process_video(input_path, output_path, apply_cc=True):
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
+    if fps == 0 or fps is None:
+        fps = 30
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     new_w, new_h = width * 2, height * 2
 
-    # استخدام ترميز H264 المتوافق مع كافة الجوالات ومتصفحات الويب
-    fourcc = cv2.VideoWriter_fourcc(*"avc1")
-    out = cv2.VideoWriter(output_path, fourcc, fps, (new_w, new_h))
-
-    # تجربة ترميز بديل إذا لم يتوفر avc1
-    if not out.isOpened():
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (new_w, new_h))
+    # حفظ الفريمات المؤقتة
+    temp_raw_video = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".mp4"
+    ).name
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(temp_raw_video, fourcc, fps, (new_w, new_h))
 
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -146,37 +170,28 @@ def process_video(input_path, output_path, apply_cc=True):
         resized_frame = cv2.resize(
             frame, (new_w, new_h), interpolation=cv2.INTER_CUBIC
         )
-
         processed_frame = enhance_frame(resized_frame, apply_cc=apply_cc)
 
         out.write(processed_frame)
         frame_count += 1
 
-        progress = int((frame_count / total_frames) * 100)
-        progress_bar.progress(progress)
+        if total_frames > 0:
+            progress = int((frame_count / total_frames) * 100)
+            progress_bar.progress(min(progress, 100))
         status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
 
     cap.release()
     out.release()
 
+    # تحويل الفيديو بصيغة H.264 متوافقة مع كل الجوالات والمشغلين
+    os.system(
+        f"ffmpeg -y -i {temp_raw_video} -vcodec libx264 -crf 20 -pix_fmt yuv420p {output_path}"
+    )
+
 
 # ==========================================
-# 5. الواجهة الرئيسية للبرنامج
+# 5. واجهة رفع ومعالجة الملفات
 # ==========================================
-st.sidebar.success(
-    "🟢 أهلاً بك"
-    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
-)
-if st.sidebar.button("تسجيل الخروج"):
-    st.session_state.authenticated = False
-    st.session_state.is_admin = False
-    st.rerun()
-
-st.title("⚡ 3badiJO Engine | VIP 4K Enhancement")
-st.write(
-    "رفع الجودة، ضبط الإضاءة والتباين تلقائياً كل 5 فريمات، وتطبيق الفلاتر السينمائية."
-)
-
 mode = st.radio("اختر خيار التعديل:", ["تحسين جودة 4K فقط", "4K + فلتر سينمائي"])
 uploaded_file = st.file_uploader(
     "ارفع فيديو أو صورة للتعديل:", type=["mp4", "mov", "jpg", "png"]
@@ -196,7 +211,9 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري تحليل الجودة وضبط الفريمات..."):
+            with st.spinner(
+                "جاري تحليل الجودة وضبط الفريمات وضغط الفيديو ليعمل على جميع الجوالات..."
+            ):
                 process_video(tfile.name, output_file, apply_cc=apply_cc)
 
             st.success("تمت المعالجة بنجاح! شاهد أو حمل الفيديو المحسن:")
@@ -204,7 +221,7 @@ if uploaded_file is not None:
 
             with open(output_file, "rb") as f:
                 st.download_button(
-                    "📥 تحميل الفيديو المحسن",
+                    "📥 تحميل الفيديو المحسن (MP4)",
                     f,
                     file_name="3badiJO_4K.mp4",
                     mime="video/mp4",
