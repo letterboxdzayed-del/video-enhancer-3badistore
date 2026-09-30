@@ -3,4 +3,5 @@ opencv-python-headless
 numpy
 pyotp
 Pillow
-ffmpeg-python
+imageio
+imageio-ffmpeg
