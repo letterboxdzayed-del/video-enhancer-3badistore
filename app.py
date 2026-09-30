@@ -12,7 +12,7 @@ from PIL import Image
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO Engine",
+    page_title="3badiJO High-Bitrate Engine",
     page_icon="🎬",
     layout="centered",
 )
@@ -72,7 +72,7 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO High-Quality Engine")
+st.title("⚡ 3badiJO Pro Quality Engine")
 
 if st.session_state.is_admin:
     main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
@@ -80,26 +80,29 @@ if st.session_state.is_admin:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("معالجة الدقة والجودة")
+        st.write("رفع الدقة والوضوح (High Bitrate)")
 else:
-    st.write("معالجة الدقة والجودة")
+    st.write("رفع الدقة والوضوح (High Bitrate)")
 
 
 # ==========================================
-# 3. محرك رفع الجودة والتفاصيل
+# 3. محرك رفع الدقة الحادة (Pro Sharpen & Upscale)
 # ==========================================
-def enhance_frame(frame):
-    # تكبير الأبعاد 2X للمحافظة على أقصى دقة
+def sharp_upscale_frame(frame):
+    # 1. مضاعفة الأبعاد (2X) للحصول على أقصى دقة للتفاصيل
     h, w = frame.shape[:2]
     upscaled = cv2.resize(
         frame, (w * 2, h * 2), interpolation=cv2.INTER_LANCZOS4
     )
 
-    # توضيح الحواف والتفاصيل بدون التعديل على الألوان إطلاقاً
-    gaussian = cv2.GaussianBlur(upscaled, (0, 0), 2.0)
-    sharpened = cv2.addWeighted(upscaled, 1.3, gaussian, -0.3, 0)
+    # 2. استخراج الحواف الدقيقة جداً لتوضيح تفاصيل الوجه والمباني والمناظر
+    blur = cv2.GaussianBlur(upscaled, (0, 0), 3.0)
+    high_pass = cv2.subtract(upscaled, blur)
 
-    return sharpened
+    # 3. دمج الحدّة مع الحفاظ الكامل والرسمي على درجات الألوان الأصلية
+    sharp_frame = cv2.addWeighted(upscaled, 1.0, high_pass, 1.5, 0)
+
+    return sharp_frame
 
 
 def enhance_video(input_path, output_path):
@@ -111,13 +114,13 @@ def enhance_video(input_path, output_path):
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
 
-    # تصدير بأعلى معدل بت (CRF 15) للحفاظ على جودة الفيديو الأصلي
+    # تصدير ببتريت أقصى (CRF 12) للحفاظ على جودة خرافية بدون أي بكسلة
     writer = imageio.get_writer(
         temp_no_audio,
         fps=fps,
         codec="libx264",
         pixelformat="yuv420p",
-        ffmpeg_params=["-crf", "15", "-preset", "fast"],
+        ffmpeg_params=["-crf", "12", "-preset", "slow"],
         macro_block_size=1,
     )
 
@@ -130,7 +133,7 @@ def enhance_video(input_path, output_path):
         if not ret:
             break
 
-        processed_bgr = enhance_frame(frame)
+        processed_bgr = sharp_upscale_frame(frame)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
         writer.append_data(processed_rgb)
@@ -183,7 +186,7 @@ if uploaded_file is not None:
 
     if is_video:
         st.video(uploaded_file)
-        if st.button("معالجة الفيديو 🔥"):
+        if st.button("رفع الجودة بأقصى وضوح 🔥"):
             tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
             tfile.write(uploaded_file.read())
 
@@ -191,7 +194,7 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري التكبير وتحسين الجودة..."):
+            with st.spinner("جاري معالجة الدقة والتفاصيل..."):
                 enhance_video(tfile.name, output_file)
 
             st.success("تمت المعالجة بنجاح!")
@@ -201,7 +204,7 @@ if uploaded_file is not None:
                 st.download_button(
                     "📥 تحميل الفيديو المحسن (MP4)",
                     f,
-                    file_name="3badiJO_HD.mp4",
+                    file_name="3badiJO_UltraHD.mp4",
                     mime="video/mp4",
                 )
 
@@ -210,7 +213,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = enhance_frame(img_bgr)
+        enhanced_bgr = sharp_upscale_frame(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة:")
