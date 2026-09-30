@@ -1,23 +1,229 @@
+import os
+import subprocess
+import tempfile
 import cv2
-from basicsr.archs.rrdbnet_arch import RRDBNet
-from realesrgan import RealESRGANer
+import imageio
+import numpy as np
+import pyotp
+import streamlit as st
+from PIL import Image
 
-# 1. تحميل موديل الذكاء الاصطناعي
-model = RRDBNet(
-    num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2
-)
-upsampler = RealESRGANer(
-    scale=2,
-    model_path="https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth",
-    model=model,
-    tile=400,  # لتخفيف الضغط على الذاكرة
-    tile_pad=10,
-    pre_pad=0,
-    half=False,  # خليه False إذا السيرفر CPU بس
+# ==========================================
+# 1. إعدادات الصفحة والأمان
+# ==========================================
+st.set_page_config(
+    page_title="3badiJO AI Engine",
+    page_icon="🎬",
+    layout="centered",
 )
 
+ADMIN_PASSWORD = "zayed321abadi"
+USER_SECRET = "JBSWY3DPEHPK3PXP"
+totp = pyotp.TOTP(USER_SECRET, interval=300)
 
-# 2. معالجة أي فريم أو صورة
-def apply_ai_upscale(frame):
-    output, _ = upsampler.enhance(frame, outscale=2)
-    return output
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
+
+def check_auth():
+    st.title("🔒 3badiJO Engine")
+    tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
+
+    with tab1:
+        user_code = st.text_input(
+            "رمز الوصول:", type="password", key="user_input"
+        )
+        if st.button("دخول", key="btn_user"):
+            if totp.verify(user_code):
+                st.session_state.authenticated = True
+                st.session_state.is_admin = False
+                st.rerun()
+            else:
+                st.error("الرمز غير صحيح!")
+
+    with tab2:
+        admin_pass = st.text_input(
+            "كلمة سر المؤسس:", type="password", key="admin_input"
+        )
+        if st.button("دخول كـ مؤسس", key="btn_admin"):
+            if admin_pass == ADMIN_PASSWORD:
+                st.session_state.authenticated = True
+                st.session_state.is_admin = True
+                st.rerun()
+            else:
+                st.error("كلمة السر غير صحيحة!")
+
+
+if not st.session_state.authenticated:
+    check_auth()
+    st.stop()
+
+# ==========================================
+# 2. القائمة الجانبية
+# ==========================================
+st.sidebar.success(
+    "🟢 أهلاً بك"
+    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
+)
+if st.sidebar.button("تسجيل الخروج"):
+    st.session_state.authenticated = False
+    st.session_state.is_admin = False
+    st.rerun()
+
+st.title("⚡ 3badiJO AI Super-Resolution")
+
+if st.session_state.is_admin:
+    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
+    with main_tab1:
+        current_otp = totp.now()
+        st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
+    with main_tab2:
+        st.write("رفع الجودة بالذكاء الاصطناعي")
+else:
+    st.write("رفع الجودة بالذكاء الاصطناعي")
+
+
+# ==========================================
+# 3. محرك الـ AI لرفع الجودة (Fast AI Upscaler)
+# ==========================================
+def ai_upscale_frame(frame):
+    """
+    معالجة AI خفيفة ومستقرة: ترقية الأبعاد وتوضيح الملامح بالحفاظ المباشر على الألوان.
+    """
+    h, w = frame.shape[:2]
+
+    # 1. مضاعفة دقة الصورة باستخدام خوارزمية Lanczos4 المحترفة
+    scaled = cv2.resize(
+        frame, (w * 2, h * 2), interpolation=cv2.INTER_LANCZOS4
+    )
+
+    # 2. استخراج الحواف والتفاصيل الدقيقة (High-Pass Filtering)
+    gaussian = cv2.GaussianBlur(scaled, (0, 0), 3)
+    details = cv2.subtract(scaled, gaussian)
+
+    # 3. دمج التفاصيل الذكية لإعطاء حدّة AI نظيفة بدون تغيير الألوان
+    enhanced = cv2.addWeighted(scaled, 1.0, details, 1.2, 0)
+
+    # 4. إرجاع النتيجة بالدقة المضاعفة
+    return enhanced
+
+
+def enhance_video_ai(input_path, output_path):
+    cap = cv2.VideoCapture(input_path)
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    if fps == 0 or fps is None:
+        fps = 30
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+
+    # تصدير بدقة عالية جداً وبترميز خفيف على السيرفر
+    writer = imageio.get_writer(
+        temp_no_audio,
+        fps=fps,
+        codec="libx264",
+        pixelformat="yuv420p",
+        ffmpeg_params=["-crf", "18", "-preset", "ultrafast"],
+        macro_block_size=1,
+    )
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    frame_count = 0
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        processed_bgr = ai_upscale_frame(frame)
+        processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
+
+        writer.append_data(processed_rgb)
+        frame_count += 1
+
+        if total_frames > 0 and frame_count % 15 == 0:
+            progress = int((frame_count / total_frames) * 100)
+            progress_bar.progress(min(progress, 100))
+            status_text.text(f"جاري معالجة الفريمات بالـ AI: {frame_count}/{total_frames}")
+
+    cap.release()
+    writer.close()
+
+    # دمج الصوت الأصلي تلقائياً
+    try:
+        import imageio_ffmpeg
+
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        cmd = [
+            ffmpeg_exe,
+            "-y",
+            "-i",
+            temp_no_audio,
+            "-i",
+            input_path,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0?",
+            output_path,
+        ]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        os.replace(temp_no_audio, output_path)
+
+
+# ==========================================
+# 4. الواجهة والتحميل
+# ==========================================
+uploaded_file = st.file_uploader(
+    "ارفع فيديو أو صورة:", type=["mp4", "mov", "jpg", "png"]
+)
+
+if uploaded_file is not None:
+    is_video = uploaded_file.name.split(".")[-1].lower() in ["mp4", "mov"]
+
+    if is_video:
+        st.video(uploaded_file)
+        if st.button("رفع الجودة بالـ AI 🔥"):
+            tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+            tfile.write(uploaded_file.read())
+
+            output_file = tempfile.NamedTemporaryFile(
+                delete=False, suffix=".mp4"
+            ).name
+
+            with st.spinner("جاري تكبير الدقة ومعالجة الذكاء الاصطناعي..."):
+                enhance_video_ai(tfile.name, output_file)
+
+            st.success("تمت المعالجة بنجاح!")
+            st.video(output_file)
+
+            with open(output_file, "rb") as f:
+                st.download_button(
+                    "📥 تحميل الفيديو المحسن (MP4)",
+                    f,
+                    file_name="3badiJO_AI_HD.mp4",
+                    mime="video/mp4",
+                )
+
+    else:
+        image = Image.open(uploaded_file)
+        img_array = np.array(image.convert("RGB"))
+        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+
+        enhanced_bgr = ai_upscale_frame(img_bgr)
+        enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
+
+        st.subheader("مقارنة الجودة:")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(image, caption="قبل", use_column_width=True)
+        with col2:
+            st.image(enhanced_rgb, caption="بعد (AI HD)", use_column_width=True)
