@@ -19,8 +19,8 @@ st.set_page_config(
 # ==========================================
 # 2. نظام الأمان والمفتاح السرّي
 # ==========================================
-# كلمة السر الثابتة الخاصة بك كمؤسس فقط:
-ADMIN_PASSWORD = "admin123"
+# كلمة السر الخاصة بك كمؤسس للموقع:
+ADMIN_PASSWORD = "zayed321abadi"
 
 # المفتاح السري لتوليد رمز المشتركين المتجدد كل 5 دقائق:
 USER_SECRET = "JBSWY3DPEHPK3PXP"
@@ -64,7 +64,7 @@ def check_auth():
             if admin_pass == ADMIN_PASSWORD:
                 st.session_state.authenticated = True
                 st.session_state.is_admin = True
-                st.success("أهلاً بك يا مدير الموقع!")
+                st.success("أهلاً بك زايد!")
                 st.rerun()
             else:
                 st.error("كلمة سر المؤسس غير صحيحة!")
@@ -76,7 +76,7 @@ if not st.session_state.authenticated:
 
 
 # ==========================================
-# 3. لوحة تحكم المؤسس (تظهر فقط لك)
+# 3. لوحة تحكم المؤسس (تظهر في القائمة الجانبية)
 # ==========================================
 if st.session_state.is_admin:
     st.sidebar.markdown("---")
@@ -124,8 +124,14 @@ def process_video(input_path, output_path, apply_cc=True):
 
     new_w, new_h = width * 2, height * 2
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    # استخدام ترميز H264 المتوافق مع كافة الجوالات ومتصفحات الويب
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
     out = cv2.VideoWriter(output_path, fourcc, fps, (new_w, new_h))
+
+    # تجربة ترميز بديل إذا لم يتوفر avc1
+    if not out.isOpened():
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(output_path, fourcc, fps, (new_w, new_h))
 
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -198,7 +204,10 @@ if uploaded_file is not None:
 
             with open(output_file, "rb") as f:
                 st.download_button(
-                    "📥 تحميل الفيديو المحسن", f, file_name="3badiJO_4K.mp4"
+                    "📥 تحميل الفيديو المحسن",
+                    f,
+                    file_name="3badiJO_4K.mp4",
+                    mime="video/mp4",
                 )
 
     else:
