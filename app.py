@@ -86,17 +86,29 @@ else:
 
 
 # ==========================================
-# 3. محرك تحسين الجودة السريع جداً
+# 3. محرك الفلتر القوي جداً (Ultra Contrast & Color)
 # ==========================================
-def fast_enhance_frame(frame):
-    """تحسين الجودة والحدّة والتباين بسرعة فائقة."""
-    blur = cv2.GaussianBlur(frame, (0, 0), 1.8)
-    sharp = cv2.addWeighted(frame, 1.3, blur, -0.3, 0)
+def strong_enhance_frame(frame):
+    """تعديل قوي وواضح جداً للعين للألوان والحدّة والتباين."""
+    # 1. شاربين قوي جداً
+    gaussian = cv2.GaussianBlur(frame, (0, 0), 2.5)
+    sharp = cv2.addWeighted(frame, 1.8, gaussian, -0.8, 0)
 
-    # تحسين التباين والألوان بنمط سريع direct matrix
-    enhanced = sharp.astype(np.float32)
-    enhanced = (enhanced - 10) * 1.05 + 12
-    return np.clip(enhanced, 0, 255).astype(np.uint8)
+    # 2. رفع التباين والسطوع
+    lab = cv2.cvtColor(sharp, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
+    cl = clahe.apply(l)
+    enhanced_lab = cv2.merge((cl, a, b))
+    enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+    # 3. تعزيز ألوان صارخ (Vibrance Boost)
+    hsv = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv[:, :, 1] *= 1.35  # رفع تشبع الألوان بـ 35%
+    hsv[:, :, 2] *= 1.08  # رفع الإضاءة
+    hsv = np.clip(hsv, 0, 255).astype(np.uint8)
+
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 
 def enhance_video(input_path, output_path):
@@ -112,7 +124,7 @@ def enhance_video(input_path, output_path):
         temp_no_audio,
         fps=fps,
         codec="libx264",
-        quality=6,
+        quality=7,
         pixelformat="yuv420p",
         ffmpeg_params=["-preset", "ultrafast"],
         macro_block_size=1,
@@ -127,13 +139,13 @@ def enhance_video(input_path, output_path):
         if not ret:
             break
 
-        processed_bgr = fast_enhance_frame(frame)
+        processed_bgr = strong_enhance_frame(frame)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
         writer.append_data(processed_rgb)
         frame_count += 1
 
-        # تحديث شريط التقدم كل ثانية (كل 30 فريم)
+        # تحديث كل ثانية (كل 30 فريم)
         if total_frames > 0 and frame_count % 30 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
@@ -208,7 +220,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = fast_enhance_frame(img_bgr)
+        enhanced_bgr = strong_enhance_frame(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة:")
