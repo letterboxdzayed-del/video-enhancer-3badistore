@@ -12,7 +12,7 @@ from PIL import Image
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO AI Engine",
+    page_title="3badiJO Engine",
     page_icon="🎬",
     layout="centered",
 )
@@ -72,7 +72,7 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO AI Super-Resolution")
+st.title("⚡ 3badiJO High-Quality Engine")
 
 if st.session_state.is_admin:
     main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
@@ -80,37 +80,29 @@ if st.session_state.is_admin:
         current_otp = totp.now()
         st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("رفع الجودة بالذكاء الاصطناعي")
+        st.write("معالجة الدقة والجودة")
 else:
-    st.write("رفع الجودة بالذكاء الاصطناعي")
+    st.write("معالجة الدقة والجودة")
 
 
 # ==========================================
-# 3. محرك الـ AI لرفع الجودة (Fast AI Upscaler)
+# 3. محرك رفع الجودة والتفاصيل
 # ==========================================
-def ai_upscale_frame(frame):
-    """
-    معالجة AI خفيفة ومستقرة: ترقية الأبعاد وتوضيح الملامح بالحفاظ المباشر على الألوان.
-    """
+def enhance_frame(frame):
+    # تكبير الأبعاد 2X للمحافظة على أقصى دقة
     h, w = frame.shape[:2]
-
-    # 1. مضاعفة دقة الصورة باستخدام خوارزمية Lanczos4 المحترفة
-    scaled = cv2.resize(
+    upscaled = cv2.resize(
         frame, (w * 2, h * 2), interpolation=cv2.INTER_LANCZOS4
     )
 
-    # 2. استخراج الحواف والتفاصيل الدقيقة (High-Pass Filtering)
-    gaussian = cv2.GaussianBlur(scaled, (0, 0), 3)
-    details = cv2.subtract(scaled, gaussian)
+    # توضيح الحواف والتفاصيل بدون التعديل على الألوان إطلاقاً
+    gaussian = cv2.GaussianBlur(upscaled, (0, 0), 2.0)
+    sharpened = cv2.addWeighted(upscaled, 1.3, gaussian, -0.3, 0)
 
-    # 3. دمج التفاصيل الذكية لإعطاء حدّة AI نظيفة بدون تغيير الألوان
-    enhanced = cv2.addWeighted(scaled, 1.0, details, 1.2, 0)
-
-    # 4. إرجاع النتيجة بالدقة المضاعفة
-    return enhanced
+    return sharpened
 
 
-def enhance_video_ai(input_path, output_path):
+def enhance_video(input_path, output_path):
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     if fps == 0 or fps is None:
@@ -119,13 +111,13 @@ def enhance_video_ai(input_path, output_path):
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
 
-    # تصدير بدقة عالية جداً وبترميز خفيف على السيرفر
+    # تصدير بأعلى معدل بت (CRF 15) للحفاظ على جودة الفيديو الأصلي
     writer = imageio.get_writer(
         temp_no_audio,
         fps=fps,
         codec="libx264",
         pixelformat="yuv420p",
-        ffmpeg_params=["-crf", "18", "-preset", "ultrafast"],
+        ffmpeg_params=["-crf", "15", "-preset", "fast"],
         macro_block_size=1,
     )
 
@@ -138,7 +130,7 @@ def enhance_video_ai(input_path, output_path):
         if not ret:
             break
 
-        processed_bgr = ai_upscale_frame(frame)
+        processed_bgr = enhance_frame(frame)
         processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
         writer.append_data(processed_rgb)
@@ -147,7 +139,7 @@ def enhance_video_ai(input_path, output_path):
         if total_frames > 0 and frame_count % 15 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
-            status_text.text(f"جاري معالجة الفريمات بالـ AI: {frame_count}/{total_frames}")
+            status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
 
     cap.release()
     writer.close()
@@ -191,7 +183,7 @@ if uploaded_file is not None:
 
     if is_video:
         st.video(uploaded_file)
-        if st.button("رفع الجودة بالـ AI 🔥"):
+        if st.button("معالجة الفيديو 🔥"):
             tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
             tfile.write(uploaded_file.read())
 
@@ -199,8 +191,8 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري تكبير الدقة ومعالجة الذكاء الاصطناعي..."):
-                enhance_video_ai(tfile.name, output_file)
+            with st.spinner("جاري التكبير وتحسين الجودة..."):
+                enhance_video(tfile.name, output_file)
 
             st.success("تمت المعالجة بنجاح!")
             st.video(output_file)
@@ -209,7 +201,7 @@ if uploaded_file is not None:
                 st.download_button(
                     "📥 تحميل الفيديو المحسن (MP4)",
                     f,
-                    file_name="3badiJO_AI_HD.mp4",
+                    file_name="3badiJO_HD.mp4",
                     mime="video/mp4",
                 )
 
@@ -218,7 +210,7 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = ai_upscale_frame(img_bgr)
+        enhanced_bgr = enhance_frame(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
         st.subheader("مقارنة الجودة:")
@@ -226,4 +218,4 @@ if uploaded_file is not None:
         with col1:
             st.image(image, caption="قبل", use_column_width=True)
         with col2:
-            st.image(enhanced_rgb, caption="بعد (AI HD)", use_column_width=True)
+            st.image(enhanced_rgb, caption="بعد", use_column_width=True)
