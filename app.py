@@ -88,10 +88,10 @@ def upscale_video_with_replicate(video_path):
     try:
         with open(video_path, "rb") as file:
             output = replicate.run(
-                "cjwbw/real-esrgan:424308634d02e05f0217578351543716a5c1f5139097d81a8b0c4a4e157796d4",
+                "lucataco/real-esrgan-video:901e1279a0eb70a133d1912a20d43a758788be8812c8ff46241b52a5c1b6d17e",
                 input={
                     "video": file,
-                    "fps": 0,  # الحفاظ على الـ FPS الأصلي
+                    "upscale": 2,
                 },
             )
         return output
