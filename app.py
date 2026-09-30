@@ -87,8 +87,9 @@ else:
 def upscale_video_with_replicate(video_path):
     try:
         with open(video_path, "rb") as file:
+            # استخدام اسم الموديل المباشر العام بدون version مفردة لتفادي الأخطاء
             output = replicate.run(
-                "lucataco/real-esrgan-video:901e1279a0eb70a133d1912a20d43a758788be8812c8ff46241b52a5c1b6d17e",
+                "lucataco/real-esrgan-video",
                 input={
                     "video": file,
                     "upscale": 2,
