@@ -1,7 +1,8 @@
-streamlit
+lstreamlit
 opencv-python-headless
 imageio
 imageio-ffmpeg
 numpy
 pillow
 pyotp
+replicate
