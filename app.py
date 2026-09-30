@@ -12,8 +12,8 @@ from PIL import Image
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO Engine - Turbo 4K",
-    page_icon="⚡",
+    page_title="3badiJO Engine",
+    page_icon="🎬",
     layout="centered",
 )
 
@@ -28,25 +28,22 @@ if "is_admin" not in st.session_state:
 
 
 def check_auth():
-    st.title("🔒 3badiJO - بوابة الوصول")
+    st.title("🔒 3badiJO")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
-        st.write("أدخل رمز الوصول الخاص بك:")
         user_code = st.text_input(
-            "رمز الـ OTP للمشتركين:", type="password", key="user_input"
+            "رمز الوصول:", type="password", key="user_input"
         )
-        if st.button("دخول المنصة", key="btn_user"):
+        if st.button("دخول", key="btn_user"):
             if totp.verify(user_code):
                 st.session_state.authenticated = True
                 st.session_state.is_admin = False
-                st.success("تم التوثيق بنجاح!")
                 st.rerun()
             else:
-                st.error("الرمز غير صحيح أو انتهت صلاحيته!")
+                st.error("الرمز غير صحيح!")
 
     with tab2:
-        st.write("تسجيل دخول مالك الموقع:")
         admin_pass = st.text_input(
             "كلمة سر المؤسس:", type="password", key="admin_input"
         )
@@ -54,10 +51,9 @@ def check_auth():
             if admin_pass == ADMIN_PASSWORD:
                 st.session_state.authenticated = True
                 st.session_state.is_admin = True
-                st.success("أهلاً بك زايد!")
                 st.rerun()
             else:
-                st.error("كلمة سر المؤسس غير صحيحة!")
+                st.error("كلمة السر غير صحيحة!")
 
 
 if not st.session_state.authenticated:
@@ -76,45 +72,34 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("⚡ 3badiJO Engine | Turbo 4K")
+st.title("⚡ 3badiJO Engine")
 
 if st.session_state.is_admin:
-    main_tab1, main_tab2 = st.tabs(
-        ["🔑 رمز المشترك المتجدد (OTP)", "🎬 معالجة الفيديو والصور"]
-    )
+    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
     with main_tab1:
-        st.subheader("لوحة المؤسس - الرمز الحالي للمشتركين")
         current_otp = totp.now()
-        st.success(f"🔑 الباسورد الحالي للمشتركين هو:\n# **{current_otp}**")
-        st.info("الرمز يتغير تلقائياً كل 5 دقائق.")
+        st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
     with main_tab2:
-        st.write("رفع الجودة السريع جداً مع حفظ الألوان والصوت:")
+        st.write("تحسين الجودة")
 else:
-    st.write("محرك رفع الجودة والحدّة السريع جداً.")
+    st.write("تحسين الجودة")
 
 
 # ==========================================
-# 3. خوارزمية المعالجة السريعة (Frame-Skip Optimization)
+# 3. محرك تحسين الجودة السريع جداً
 # ==========================================
-def process_frame_fast(frame):
-    """تعديل الجودة والتباين والألوان بنسبة ممتازة."""
-    h, w = frame.shape[:2]
-    resized = cv2.resize(frame, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
+def fast_enhance_frame(frame):
+    """تحسين الجودة والحدّة والتباين بسرعة فائقة."""
+    blur = cv2.GaussianBlur(frame, (0, 0), 1.8)
+    sharp = cv2.addWeighted(frame, 1.3, blur, -0.3, 0)
 
-    # 1. شاربين سريع
-    blur = cv2.GaussianBlur(resized, (0, 0), 2.0)
-    sharp = cv2.addWeighted(resized, 1.4, blur, -0.4, 0)
-
-    # 2. تحسين الألوان بنسبة سينمائية
-    hsv = cv2.cvtColor(sharp, cv2.COLOR_BGR2HSV).astype(np.float32)
-    hsv[:, :, 1] *= 1.20  # تشبّع الألوان
-    hsv[:, :, 2] *= 1.05  # السطوع
-    hsv = np.clip(hsv, 0, 255).astype(np.uint8)
-
-    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    # تحسين التباين والألوان بنمط سريع direct matrix
+    enhanced = sharp.astype(np.float32)
+    enhanced = (enhanced - 10) * 1.05 + 12
+    return np.clip(enhanced, 0, 255).astype(np.uint8)
 
 
-def enhance_video_turbo(input_path, output_path):
+def enhance_video(input_path, output_path):
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     if fps == 0 or fps is None:
@@ -123,7 +108,6 @@ def enhance_video_turbo(input_path, output_path):
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     temp_no_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
 
-    # استخدام ترميز سريع جداً (ultrafast) لعدم إجهاد المعالج
     writer = imageio.get_writer(
         temp_no_audio,
         fps=fps,
@@ -136,33 +120,29 @@ def enhance_video_turbo(input_path, output_path):
 
     progress_bar = st.progress(0)
     status_text = st.empty()
-
     frame_count = 0
-    step = 3  # معالجة فريم واحد كل 3 فريمات فقط لتسريع العملية 300%
-    cached_processed_rgb = None
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # معالجة فريم جديد كل 3 فريمات وإعادة استخدام النتيجة للفريمات المتتالية
-        if frame_count % step == 0 or cached_processed_rgb is None:
-            processed_bgr = process_frame_fast(frame)
-            cached_processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
+        processed_bgr = fast_enhance_frame(frame)
+        processed_rgb = cv2.cvtColor(processed_bgr, cv2.COLOR_BGR2RGB)
 
-        writer.append_data(cached_processed_rgb)
+        writer.append_data(processed_rgb)
         frame_count += 1
 
-        if total_frames > 0 and frame_count % 15 == 0:
+        # تحديث شريط التقدم كل ثانية (كل 30 فريم)
+        if total_frames > 0 and frame_count % 30 == 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
-            status_text.text(f"جاري المعالجة السريعة: {frame_count}/{total_frames}")
+            status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
 
     cap.release()
     writer.close()
 
-    # دمج الصوت الأصلي بسرعة
+    # دمج الصوت الأصلي
     try:
         import imageio_ffmpeg
 
@@ -190,10 +170,10 @@ def enhance_video_turbo(input_path, output_path):
 
 
 # ==========================================
-# 4. الواجهة المباشرة
+# 4. الواجهة
 # ==========================================
 uploaded_file = st.file_uploader(
-    "ارفع فيديو أو صورة للتعديل:", type=["mp4", "mov", "jpg", "png"]
+    "ارفع فيديو أو صورة:", type=["mp4", "mov", "jpg", "png"]
 )
 
 if uploaded_file is not None:
@@ -201,7 +181,7 @@ if uploaded_file is not None:
 
     if is_video:
         st.video(uploaded_file)
-        if st.button("بدء تحسين الجودة السريع 🔥"):
+        if st.button("تحسين الجودة 🔥"):
             tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
             tfile.write(uploaded_file.read())
 
@@ -209,17 +189,17 @@ if uploaded_file is not None:
                 delete=False, suffix=".mp4"
             ).name
 
-            with st.spinner("جاري المعالجة السريعة وحفظ الصوت..."):
-                enhance_video_turbo(tfile.name, output_file)
+            with st.spinner("جاري معالجة الفيديو..."):
+                enhance_video(tfile.name, output_file)
 
-            st.success("تمت المعالجة بنجاح وسرعة عالية!")
+            st.success("تمت المعالجة بنجاح!")
             st.video(output_file)
 
             with open(output_file, "rb") as f:
                 st.download_button(
                     "📥 تحميل الفيديو المحسن (MP4)",
                     f,
-                    file_name="3badiJO_4K_Fast.mp4",
+                    file_name="3badiJO_4K.mp4",
                     mime="video/mp4",
                 )
 
@@ -228,16 +208,12 @@ if uploaded_file is not None:
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        enhanced_bgr = process_frame_fast(img_bgr)
+        enhanced_bgr = fast_enhance_frame(img_bgr)
         enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
 
-        st.subheader("مقارنة الجودة (قبل / بعد):")
+        st.subheader("مقارنة الجودة:")
         col1, col2 = st.columns(2)
         with col1:
-            st.image(image, caption="الصورة الأصلية", use_column_width=True)
+            st.image(image, caption="قبل", use_column_width=True)
         with col2:
-            st.image(
-                enhanced_rgb,
-                caption="بعد التعديل",
-                use_column_width=True,
-            )
+            st.image(enhanced_rgb, caption="بعد", use_column_width=True)
