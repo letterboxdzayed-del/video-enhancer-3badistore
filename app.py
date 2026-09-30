@@ -17,29 +17,57 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. نظام الأمان (OTP متجدد كل 5 دقائق)
+# 2. نظام الأمان والمفتاح السرّي
 # ==========================================
-# المفتاح السري الخاص بالعميل (تنشئ واحد لكل مشترِ)
+# كلمة السر الثابتة الخاصة بك كمؤسس فقط:
+ADMIN_PASSWORD = "admin123"
+
+# المفتاح السري لتوليد رمز المشتركين المتجدد كل 5 دقائق:
 USER_SECRET = "JBSWY3DPEHPK3PXP"
 totp = pyotp.TOTP(USER_SECRET, interval=300)  # 300 ثانية = 5 دقائق
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
 
 
 def check_auth():
-    st.title("🔒 3badiJO - بوابة المشتركين")
-    st.write("أدخل رمز الوصول المؤقت الخاص بك (يتغير تلقائياً كل 5 دقائق):")
+    st.title("🔒 3badiJO - بوابة الوصول")
 
-    user_code = st.text_input("رمز الـ OTP:", type="password")
+    tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
-    if st.button("دخول المنصة"):
-        if totp.verify(user_code):
-            st.session_state.authenticated = True
-            st.success("تم التوثيق بنجاح!")
-            st.rerun()
-        else:
-            st.error("الرمز غير صحيح أو انتهت صلاحية الخمس دقائق!")
+    # --- تبويب المشتركين ---
+    with tab1:
+        st.write("أدخل رمز الوصول المؤقت الخاص بك:")
+        user_code = st.text_input(
+            "رمز الـ OTP للمشتركين:", type="password", key="user_input"
+        )
+
+        if st.button("دخول المنصة", key="btn_user"):
+            if totp.verify(user_code):
+                st.session_state.authenticated = True
+                st.session_state.is_admin = False
+                st.success("تم التوثيق بنجاح!")
+                st.rerun()
+            else:
+                st.error("الرمز غير صحيح أو انتهت صلاحيته!")
+
+    # --- تبويب المؤسس ---
+    with tab2:
+        st.write("تسجيل دخول مالك الموقع:")
+        admin_pass = st.text_input(
+            "كلمة سر المؤسس:", type="password", key="admin_input"
+        )
+
+        if st.button("دخول كـ مؤسس", key="btn_admin"):
+            if admin_pass == ADMIN_PASSWORD:
+                st.session_state.authenticated = True
+                st.session_state.is_admin = True
+                st.success("أهلاً بك يا مدير الموقع!")
+                st.rerun()
+            else:
+                st.error("كلمة سر المؤسس غير صحيحة!")
 
 
 if not st.session_state.authenticated:
@@ -48,47 +76,52 @@ if not st.session_state.authenticated:
 
 
 # ==========================================
-# 3. محرك المعالجة الذكي (Smart Frame Engine)
+# 3. لوحة تحكم المؤسس (تظهر فقط لك)
+# ==========================================
+if st.session_state.is_admin:
+    st.sidebar.markdown("---")
+    st.sidebar.header("👑 لوحة المؤسس")
+    current_otp = totp.now()
+    st.sidebar.success(f"🔑 الباسورد الحالي للمشتركين:\n# **{current_otp}**")
+    st.sidebar.caption("يتغير هذا الرمز تلقائياً كل 5 دقائق.")
+    st.sidebar.markdown("---")
+
+
+# ==========================================
+# 4. محرك المعالجة الذكي (Smart Frame Engine)
 # ==========================================
 def enhance_frame(frame, apply_cc=True, target_sharpness=1.5):
     """تحسين الجودة والتباين والحدّة للفريم الواحد."""
-    # 1. تحويل لـ LAB لضبط الإضاءة بدون تخريب الألوان
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
 
-    # 2. تطبيق CLAHE (موازن التباين الذكي)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     cl = clahe.apply(l)
     enhanced_lab = cv2.merge((cl, a, b))
     enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
-    # 3. فلتر الحدة والتفاصيل السينمائية (Unsharp Masking)
     gaussian_3 = cv2.GaussianBlur(enhanced_bgr, (0, 0), 2.0)
     sharpened = cv2.addWeighted(
         enhanced_bgr, 1.0 + target_sharpness, gaussian_3, -target_sharpness, 0
     )
 
-    # 4. تطبيق الفلتر السينمائي (إذا تم اختياره)
     if apply_cc:
-        # لمسة ألوان سينمائية دافئة وثابتة (Warm Cinematic Tint)
         sharpened = sharpened.astype(np.float32)
-        sharpened[:, :, 2] *= 1.08  # BGR: زيادة الأحمر قليلاً
-        sharpened[:, :, 1] *= 1.02  # BGR: زيادة الأخضر قليلاً
-        sharpened[:, :, 0] *= 0.95  # BGR: تقليل الأزرق الداكن
+        sharpened[:, :, 2] *= 1.08  # BGR
+        sharpened[:, :, 1] *= 1.02
+        sharpened[:, :, 0] *= 0.95
         sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
 
     return sharpened
 
 
 def process_video(input_path, output_path, apply_cc=True):
-    """معالجة الفيديو وتعديل التباين والإضاءة كل 5 فريمات."""
     cap = cv2.VideoCapture(input_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    # مضاعفة الدقة للـ 4K / HD
     new_w, new_h = width * 2, height * 2
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -98,29 +131,21 @@ def process_video(input_path, output_path, apply_cc=True):
     status_text = st.empty()
 
     frame_count = 0
-    cached_settings = None
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # تكبير الفريم مضاعف لمزيد من الوضوح
         resized_frame = cv2.resize(
             frame, (new_w, new_h), interpolation=cv2.INTER_CUBIC
         )
 
-        # حساب وتحسين كل 5 فريمات لتوفير الأداء والذكاء
-        if frame_count % 5 == 0:
-            processed_frame = enhance_frame(resized_frame, apply_cc=apply_cc)
-            cached_settings = processed_frame
-        else:
-            processed_frame = enhance_frame(resized_frame, apply_cc=apply_cc)
+        processed_frame = enhance_frame(resized_frame, apply_cc=apply_cc)
 
         out.write(processed_frame)
         frame_count += 1
 
-        # تحديث شريط التقدم
         progress = int((frame_count / total_frames) * 100)
         progress_bar.progress(progress)
         status_text.text(f"جاري معالجة الفريمات: {frame_count}/{total_frames}")
@@ -130,11 +155,15 @@ def process_video(input_path, output_path, apply_cc=True):
 
 
 # ==========================================
-# 4. الواجهة الرئيسية للبرنامج
+# 5. الواجهة الرئيسية للبرنامج
 # ==========================================
-st.sidebar.success("🟢 أهلاً بك في المحرك الخاص")
+st.sidebar.success(
+    "🟢 أهلاً بك"
+    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
+)
 if st.sidebar.button("تسجيل الخروج"):
     st.session_state.authenticated = False
+    st.session_state.is_admin = False
     st.rerun()
 
 st.title("⚡ 3badiJO Engine | VIP 4K Enhancement")
@@ -173,12 +202,10 @@ if uploaded_file is not None:
                 )
 
     else:
-        # لمعالجة الصور فوراً
         image = Image.open(uploaded_file)
         img_array = np.array(image.convert("RGB"))
         img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-        # مضاعفة الحجم وتحسين الجودة
         h, w = img_bgr.shape[:2]
         resized_img = cv2.resize(
             img_bgr, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC
