@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import imageio_ffmpeg
 import pyotp
 import streamlit as st
 
@@ -77,24 +78,21 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الفيديو بالـ FFmpeg (سريعة جداً)
+# 3. دالة معالجة الفيديو بجلب FFmpeg المدمج
 # ==========================================
 def apply_cinematic_cc(input_path, output_path, preset_style):
-    """
-    معالجة الفيديو مباشرة باستخدام FFmpeg للسرعة العالية وبدون استهلاك رصيد.
-    """
-    # فلاتر معالجة الصورة بناءً على النمط المختاري
+    # الحصول على مسار برنامج FFmpeg المدمج أوتوماتيكياً
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+
     if preset_style == "سينمائي حاد (Sharpen + High Contrast)":
-        # زيادة حدة التفاصيل (unsharp)، إبراز التباين والتشبع (eq)
         vf_filter = "unsharp=5:5:1.5:5:5:0.0,eq=contrast=1.18:brightness=0.01:saturation=1.25"
     elif preset_style == "ألوان مشبعة 4K (Vibrant)":
         vf_filter = "unsharp=3:3:1.0,eq=contrast=1.10:saturation=1.40:gamma=1.05"
-    else:  # توضيح ناعم (Soft Clarity)
+    else:
         vf_filter = "unsharp=3:3:0.8,eq=contrast=1.08:saturation=1.15"
 
-    # أمر FFmpeg لمعالجة الفيديو بأعلى جودة وبأسرع وقت (ultrafast preset)
     command = [
-        "ffmpeg",
+        ffmpeg_exe,
         "-y",
         "-i",
         input_path,
@@ -103,20 +101,22 @@ def apply_cinematic_cc(input_path, output_path, preset_style):
         "-c:v",
         "libx264",
         "-crf",
-        "17",  # جودة مخرجات عالية جداً (Bitrate ممتاز)
+        "17",
         "-preset",
-        "ultrafast",  # معالجة فائقة السرعة
+        "ultrafast",
         "-c:a",
-        "copy",  # الحفاظ على الصوت كما هو
+        "copy",
         output_path,
     ]
 
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     return result.returncode == 0
 
 
 # ==========================================
-# 4. الواجهة الرئيسية للرفع والتعديل
+# 4. الواجهة الرئيسية
 # ==========================================
 uploaded_file = st.file_uploader(
     "ارفع مقطع الفيديو للتعديل السينمائي:", type=["mp4", "mov"]
@@ -125,7 +125,6 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     st.video(uploaded_file)
 
-    # اختيار نمط الفلتر
     preset = st.selectbox(
         "اختر نمط الفلتر السينمائي (CC Preset):",
         [
@@ -151,7 +150,6 @@ if uploaded_file is not None:
                 st.success("تمت المعالجة بنجاح وبسرعة فائقة! 🔥")
                 st.video(out_path)
 
-                # زر تنزيل الفيديو الناتج
                 with open(out_path, "rb") as file:
                     st.download_button(
                         label="📥 تحميل الفيديو المعدل",
@@ -160,4 +158,4 @@ if uploaded_file is not None:
                         mime="video/mp4",
                     )
             else:
-                st.error("حدث خطأ أثناء معالجة الفيديو بواسطة FFmpeg.")
+                st.error("حدث خطأ أثناء معالجة الفيديو.")
