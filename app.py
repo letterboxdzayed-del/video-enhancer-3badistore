@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 import imageio_ffmpeg
 import pyotp
 import streamlit as st
@@ -60,7 +61,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 2. القائمة الجانبية
+# 2. القائمة الجانبية وحفل الحماية ضد الضغط (Queue Lock)
 # ==========================================
 st.sidebar.success(
     "🟢 أهلاً بك"
@@ -77,6 +78,15 @@ st.write("رفع جودة المقطع وتعديل الإضاءة")
 if st.session_state.is_admin:
     current_otp = totp.now()
     st.info(f"🔑 رمز المشترك الحالي: **{current_otp}**")
+
+
+# إنشاء قفل مركزي مشترك في الذاكرة لتنظيم دور المعالجة
+@st.cache_resource
+def get_global_lock():
+    return threading.Lock()
+
+
+server_lock = get_global_lock()
 
 
 # ==========================================
@@ -96,14 +106,12 @@ def get_video_duration(ffmpeg_exe, input_path):
 
 
 # ==========================================
-# 4. دالة معالجة الجودة مع شريط التقدم والنسبة المئوية
+# 4. دالة معالجة الجودة المحمية
 # ==========================================
 def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إعدادات الإضاءة المنخفضة حسب طلبك بالضبط:
-        # CAS: 0.56 | Unsharp: 1.40 | Contrast: 1.18 | Brightness: 0.09 | Saturation: 1.19
         vf_filter = (
             "hqdn3d=1.5:1.5:3:3,"
             "cas=0.56,"
@@ -112,8 +120,6 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إعدادات الإضاءة العالية حسب طلبك بالضبط:
-        # CAS: 0.58 | Unsharp: 1.41 | Contrast: 1.20 | Brightness: 0.08 | Saturation: 1.19
         vf_filter = (
             "hqdn3d=1.0:1.0:2:2,"
             "cas=0.58,"
@@ -132,11 +138,11 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "20",  # ضغط متوازن لحجم صغير جداً
+        "20",
         "-preset",
-        "veryfast",  # معالجة سريعة
+        "veryfast",
         "-threads",
-        "2",  # أمان السيرفر من الاغلاق
+        "1",  # تقييد الخيوط لتوزيع جهد المعالج بحماية
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -186,7 +192,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
 
 
 # ==========================================
-# 5. الواجهة الرئيسية
+# 5. الواجهة الرئيسية مع إدارة الدور الضمني
 # ==========================================
 uploaded_file = st.file_uploader("ارفع مقطع الفيديو:", type=["mp4", "mov"])
 
@@ -195,7 +201,7 @@ if uploaded_file is not None:
 
     light_option = st.radio(
         "💡 اختر نمط إضاءة الفيديو الأصلي:",
-        ["☀️ إضاءة عالية / طبيعية", "🌙 إضاءة واطية / معتمة"],
+        ["☀️️ إضاءة عالية / طبيعية", "🌙 إضاءة واطية / معتمة"],
         help="اختر النمط المناسب لضبط الألوان والحدة بدقة فائقة.",
     )
 
@@ -206,34 +212,42 @@ if uploaded_file is not None:
     if st.button("رفع جودة المقطع 🔥"):
         in_path = None
         out_path = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=".mp4"
-            ) as in_file:
-                in_file.write(uploaded_file.read())
-                in_path = in_file.name
 
-            out_path = in_path.replace(".mp4", "_processed.mp4")
+        status_notice = st.info(
+            "⏳ جاري تجهيز الطلب والتأكد من توفر السيرفر..."
+        )
 
-            success = enhance_video_quality(
-                in_path, out_path, mode_key
-            )
+        # استئذان القفل للبدء بالمعالجة دون خنق السيرفر
+        with server_lock:
+            status_notice.empty()
+            try:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".mp4"
+                ) as in_file:
+                    in_file.write(uploaded_file.read())
+                    in_path = in_file.name
 
-            if success and os.path.exists(out_path):
-                st.video(out_path)
+                out_path = in_path.replace(".mp4", "_processed.mp4")
 
-                with open(out_path, "rb") as file:
-                    st.download_button(
-                        label="📥 تحميل المقطع",
-                        data=file,
-                        file_name="3badiJO_Enhanced.mp4",
-                        mime="video/mp4",
-                    )
-            else:
-                st.error("لم تتم معالجة الفيديو بنجاح.")
-        finally:
-            if in_path and os.path.exists(in_path):
-                os.remove(in_path)
-            if out_path and os.path.exists(out_path):
-                os.remove(out_path)
-            gc.collect()
+                success = enhance_video_quality(
+                    in_path, out_path, mode_key
+                )
+
+                if success and os.path.exists(out_path):
+                    st.video(out_path)
+
+                    with open(out_path, "rb") as file:
+                        st.download_button(
+                            label="📥 تحميل المقطع",
+                            data=file,
+                            file_name="3badiJO_Enhanced.mp4",
+                            mime="video/mp4",
+                        )
+                else:
+                    st.error("لم تتم معالجة الفيديو بنجاح.")
+            finally:
+                if in_path and os.path.exists(in_path):
+                    os.remove(in_path)
+                if out_path and os.path.exists(out_path):
+                    os.remove(out_path)
+                gc.collect()
