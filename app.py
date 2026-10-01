@@ -1,3 +1,4 @@
+import gc
 import os
 import subprocess
 import tempfile
@@ -38,7 +39,7 @@ def check_auth():
                 st.session_state.is_admin = False
                 st.rerun()
             else:
-                st.error("الرمز غير صحيح!")
+                st.error("الرمز غير صحيح أو انتهت صلاحيته!")
 
     with tab2:
         admin_pass = st.text_input(
@@ -78,23 +79,23 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الجودة بالتعديل الجديد (Saturation 1.17)
+# 3. دالة معالجة الجودة بالقيم الجديدة
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # سلسلة المعالجة حسب تعديلاتك:
-    # 1. hqdn3d: تنظيف الضوضاء
-    # 2. cas=0.52: حدة ذكية
-    # 3. unsharp=1.35: توضيح حواف الملامح
-    # 4. eq: كونتراست 1.03 + إضاءة 0.06 + تشبع 1.17
-    # 5. scale=iw*2:ih*2: مضاعفة الأبعاد بـ Lanczos
+    # سلسلة المعالجة حسب التحديثات الأخيرة:
+    # 1. hqdn3d: تنظيف النمش والضوضاء
+    # 2. cas=0.54: حدة ذكية
+    # 3. unsharp=1.38: توضيح حواف الملامح
+    # 4. eq: كونتراست 1.19 + إضاءة 0.07 + تشبع 1.17
+    # 5. scale: تحجيم ذكي لحماية ذاكرة السيرفر
     vf_filter = (
         "hqdn3d=1.0:1.0:2:2,"
-        "cas=0.52,"
-        "unsharp=5:5:1.35:5:5:0.0,"
-        "eq=contrast=1.03:brightness=0.06:saturation=1.17,"
-        "scale=iw*2:ih*2:flags=lanczos"
+        "cas=0.54,"
+        "unsharp=5:5:1.38:5:5:0.0,"
+        "eq=contrast=1.19:brightness=0.07:saturation=1.17,"
+        "scale='min(1080,iw)':-2:flags=lanczos"
     )
 
     command = [
@@ -107,11 +108,11 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "19",  # ضغط للحصول على حجم صغير
+        "20",
         "-preset",
-        "veryfast",  # سرعة معالجة ممتازة
+        "veryfast",
         "-threads",
-        "0",
+        "2",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -119,14 +120,21 @@ def enhance_video_quality(input_path, output_path):
         output_path,
     ]
 
-    result = subprocess.run(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=180,
+        )
+        return result.returncode == 0
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء المعالجة: {e}")
+        return False
 
 
 # ==========================================
-# 4. الواجهة الرئيسية
+# 4. الواجهة الرئيسية مع التنظيف الفوري للذاكرة
 # ==========================================
 uploaded_file = st.file_uploader("ارفع مقطع الفيديو:", type=["mp4", "mov"])
 
@@ -134,27 +142,38 @@ if uploaded_file is not None:
     st.video(uploaded_file)
 
     if st.button("رفع جودة المقطع 🔥"):
-        with st.spinner("جاري معالجة ورفع جودة الفيديو بسرعة..."):
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=".mp4"
-            ) as in_file:
-                in_file.write(uploaded_file.read())
-                in_path = in_file.name
+        in_path = None
+        out_path = None
+        try:
+            with st.spinner("جاري معالجة ورفع جودة الفيديو..."):
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".mp4"
+                ) as in_file:
+                    in_file.write(uploaded_file.read())
+                    in_path = in_file.name
 
-            out_path = in_path.replace(".mp4", "_processed.mp4")
+                out_path = in_path.replace(".mp4", "_processed.mp4")
 
-            success = enhance_video_quality(in_path, out_path)
+                success = enhance_video_quality(in_path, out_path)
 
-            if success and os.path.exists(out_path):
-                st.success("تمت المعالجة بنجاح!")
-                st.video(out_path)
+                if success and os.path.exists(out_path):
+                    st.success("تمت المعالجة بنجاح!")
+                    st.video(out_path)
 
-                with open(out_path, "rb") as file:
-                    st.download_button(
-                        label="📥 تحميل المقطع",
-                        data=file,
-                        file_name="3badiJO_Enhanced.mp4",
-                        mime="video/mp4",
+                    with open(out_path, "rb") as file:
+                        st.download_button(
+                            label="📥 تحميل المقطع",
+                            data=file,
+                            file_name="3badiJO_Enhanced.mp4",
+                            mime="video/mp4",
+                        )
+                else:
+                    st.error(
+                        "لم تتم معالجة الفيديو بنجاح. يرجى تجربة مقطع أقصر."
                     )
-            else:
-                st.error("حدث خطأ أثناء معالجة الفيديو.")
+        finally:
+            if in_path and os.path.exists(in_path):
+                os.remove(in_path)
+            if out_path and os.path.exists(out_path):
+                os.remove(out_path)
+            gc.collect()
