@@ -78,13 +78,22 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الفيديو الديناميكية
+# 3. دالة المعالجة الفائقة (Denoise + 2x Scale + Sharpen + Balanced Color)
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # normalize: تباين ديناميكي تلقائي يحلل الفيديو + زيادة تشبع إضافية + حدة تفاصيل
-    vf_filter = "normalize=independence=0:strength=0.75,unsharp=5:5:1.2:5:5:0.0,eq=saturation=1.38"
+    # سلسلة المعالجة:
+    # 1. hqdn3d: تنظيف النمش والتشويش
+    # 2. scale=iw*2:ih*2: مضاعفة البكسلات بفلتر Lanczos الدقيق
+    # 3. unsharp: حدة التفاصيل (العيون والملامح)
+    # 4. eq: تباين سينمائي وتشبّع طبيعي موزون
+    vf_filter = (
+        "hqdn3d=1.5:1.5:3:3,"
+        "scale=iw*2:ih*2:flags=lanczos,"
+        "unsharp=5:5:1.2:5:5:0.0,"
+        "eq=contrast=1.12:brightness=-0.01:saturation=1.15:gamma=1.02"
+    )
 
     command = [
         ffmpeg_exe,
@@ -96,7 +105,7 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "16",
+        "15",  # أعلى معيار جودة فيديو وبدقة تفاصيل مرتفعة
         "-preset",
         "ultrafast",
         "-c:a",
@@ -119,7 +128,7 @@ if uploaded_file is not None:
     st.video(uploaded_file)
 
     if st.button("رفع جودة المقطع 🔥"):
-        with st.spinner("جاري معالجة الفيديو ورفع الجودة..."):
+        with st.spinner("جاري رفع الجودة ومعالجة التفاصيل الدقيقة..."):
             with tempfile.NamedTemporaryFile(
                 delete=False, suffix=".mp4"
             ) as in_file:
@@ -138,7 +147,7 @@ if uploaded_file is not None:
                     st.download_button(
                         label="📥 تحميل المقطع",
                         data=file,
-                        file_name="3badiJO_Enhanced.mp4",
+                        file_name="3badiJO_4K_Enhanced.mp4",
                         mime="video/mp4",
                     )
             else:
