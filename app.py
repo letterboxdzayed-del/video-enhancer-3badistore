@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered",
 )
 
-ADMIN_PASSWORD = "zayed321abadi"
+ADMIN_PASSWORD = "zayed321"
 USER_SECRET = "JBSWY3DPEHPK3PXP"
 totp = pyotp.TOTP(USER_SECRET, interval=300)
 
@@ -78,17 +78,20 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة البروز الفائق والتفاصيل
+# 3. دالة معالجة الجودة الموزونة سينمائياً
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # 1. cas=0.6: Contrast Adaptive Sharpening - يزيد حدة التفاصيل الذكية
-    # 2. unsharp=7:7:2.2: إبراز حاد وقوي جداً للحواف والملامح
-    # 3. scale=iw*2:ih*2: مضاعفة الأبعاد
+    # سلسلة معالجة متوازنة:
+    # 1. hqdn3d: تنظيف النمش والتشويش أولاً
+    # 2. cas=0.35: حدة ذكية معتدلة
+    # 3. unsharp=5:5:0.8: توضيح ناعم ومتوازن بدون تشويه للملامح
+    # 4. scale=iw*2:ih*2: مضاعفة الأبعاد
     vf_filter = (
-        "cas=0.6,"
-        "unsharp=7:7:2.2:7:7:0.0,"
+        "hqdn3d=1.0:1.0:2:2,"
+        "cas=0.35,"
+        "unsharp=5:5:0.8:5:5:0.0,"
         "scale=iw*2:ih*2:flags=lanczos"
     )
 
@@ -102,7 +105,7 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "12",  # أعلى معيار جودة بدون ضغط
+        "14",
         "-preset",
         "ultrafast",
         "-threads",
