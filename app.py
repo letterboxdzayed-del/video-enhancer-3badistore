@@ -78,22 +78,22 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الجودة بالقيم الجديدة
+# 3. دالة معالجة الجودة بالتعديل الجديد (Saturation 1.17)
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # سلسلة المعالجة بالقيم المعدلة:
-    # 1. hqdn3d: تنظيف النمش
-    # 2. cas=0.50: حدة ذكية بارزة
-    # 3. unsharp=1.3: توضيح حواف قوي
-    # 4. eq: كونتراست 1.02 + إضاءة 0.04 + تشبع 1.15
+    # سلسلة المعالجة حسب تعديلاتك:
+    # 1. hqdn3d: تنظيف الضوضاء
+    # 2. cas=0.52: حدة ذكية
+    # 3. unsharp=1.35: توضيح حواف الملامح
+    # 4. eq: كونتراست 1.03 + إضاءة 0.06 + تشبع 1.17
     # 5. scale=iw*2:ih*2: مضاعفة الأبعاد بـ Lanczos
     vf_filter = (
         "hqdn3d=1.0:1.0:2:2,"
-        "cas=0.50,"
-        "unsharp=5:5:1.3:5:5:0.0,"
-        "eq=contrast=1.02:brightness=0.04:saturation=1.15,"
+        "cas=0.52,"
+        "unsharp=5:5:1.35:5:5:0.0,"
+        "eq=contrast=1.03:brightness=0.06:saturation=1.17,"
         "scale=iw*2:ih*2:flags=lanczos"
     )
 
@@ -107,9 +107,9 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "14",
+        "19",  # ضغط للحصول على حجم صغير
         "-preset",
-        "ultrafast",
+        "veryfast",  # سرعة معالجة ممتازة
         "-threads",
         "0",
         "-pix_fmt",
