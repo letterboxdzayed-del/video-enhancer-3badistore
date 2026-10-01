@@ -78,15 +78,18 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة المعالجة فائقة السرعة بالعوامل الأربعة
+# 3. دالة معالجة البروز الفائق والتفاصيل
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
+    # 1. cas=0.6: Contrast Adaptive Sharpening - يزيد حدة التفاصيل الذكية
+    # 2. unsharp=7:7:2.2: إبراز حاد وقوي جداً للحواف والملامح
+    # 3. scale=iw*2:ih*2: مضاعفة الأبعاد
     vf_filter = (
-        "hqdn3d=1.0:1.0:2:2,"
-        "scale=iw*2:ih*2:flags=lanczos,"
-        "unsharp=5:5:1.0:5:5:0.0"
+        "cas=0.6,"
+        "unsharp=7:7:2.2:7:7:0.0,"
+        "scale=iw*2:ih*2:flags=lanczos"
     )
 
     command = [
@@ -99,7 +102,7 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "14",
+        "12",  # أعلى معيار جودة بدون ضغط
         "-preset",
         "ultrafast",
         "-threads",
