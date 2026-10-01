@@ -9,7 +9,7 @@ import streamlit as st
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO CC Engine",
+    page_title="3badiJO Engine",
     page_icon="🎬",
     layout="centered",
 )
@@ -25,7 +25,7 @@ if "is_admin" not in st.session_state:
 
 
 def check_auth():
-    st.title("🔒 3badiJO CC Engine")
+    st.title("🔒 3badiJO Engine")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
@@ -69,8 +69,8 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("🎬 3badiJO Cinematic CC Engine")
-st.caption("مُعالج الجودة السينمائية السريع (Sharpen + Contrast + Color Boost)")
+st.title("🎬 3badiJO Engine")
+st.write("رفع جودة المقطع")
 
 if st.session_state.is_admin:
     current_otp = totp.now()
@@ -78,18 +78,13 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الفيديو بجلب FFmpeg المدمج
+# 3. دالة معالجة الفيديو الديناميكية
 # ==========================================
-def apply_cinematic_cc(input_path, output_path, preset_style):
-    # الحصول على مسار برنامج FFmpeg المدمج أوتوماتيكياً
+def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    if preset_style == "سينمائي حاد (Sharpen + High Contrast)":
-        vf_filter = "unsharp=5:5:1.5:5:5:0.0,eq=contrast=1.18:brightness=0.01:saturation=1.25"
-    elif preset_style == "ألوان مشبعة 4K (Vibrant)":
-        vf_filter = "unsharp=3:3:1.0,eq=contrast=1.10:saturation=1.40:gamma=1.05"
-    else:
-        vf_filter = "unsharp=3:3:0.8,eq=contrast=1.08:saturation=1.15"
+    # normalize: تباين ديناميكي تلقائي يحلل الفيديو + زيادة تشبع إضافية + حدة تفاصيل
+    vf_filter = "normalize=independence=0:strength=0.75,unsharp=5:5:1.2:5:5:0.0,eq=saturation=1.38"
 
     command = [
         ffmpeg_exe,
@@ -101,7 +96,7 @@ def apply_cinematic_cc(input_path, output_path, preset_style):
         "-c:v",
         "libx264",
         "-crf",
-        "17",
+        "16",
         "-preset",
         "ultrafast",
         "-c:a",
@@ -118,24 +113,13 @@ def apply_cinematic_cc(input_path, output_path, preset_style):
 # ==========================================
 # 4. الواجهة الرئيسية
 # ==========================================
-uploaded_file = st.file_uploader(
-    "ارفع مقطع الفيديو للتعديل السينمائي:", type=["mp4", "mov"]
-)
+uploaded_file = st.file_uploader("ارفع مقطع الفيديو:", type=["mp4", "mov"])
 
 if uploaded_file is not None:
     st.video(uploaded_file)
 
-    preset = st.selectbox(
-        "اختر نمط الفلتر السينمائي (CC Preset):",
-        [
-            "سينمائي حاد (Sharpen + High Contrast)",
-            "ألوان مشبعة 4K (Vibrant)",
-            "توضيح ناعم (Soft Clarity)",
-        ],
-    )
-
-    if st.button("معالجة الفيديو فوراً ⚡"):
-        with st.spinner("جاري تطبيق فلاتر الـ CC والحدة خلال ثوانٍ..."):
+    if st.button("رفع جودة المقطع 🔥"):
+        with st.spinner("جاري معالجة الفيديو ورفع الجودة..."):
             with tempfile.NamedTemporaryFile(
                 delete=False, suffix=".mp4"
             ) as in_file:
@@ -144,15 +128,15 @@ if uploaded_file is not None:
 
             out_path = in_path.replace(".mp4", "_processed.mp4")
 
-            success = apply_cinematic_cc(in_path, out_path, preset)
+            success = enhance_video_quality(in_path, out_path)
 
             if success and os.path.exists(out_path):
-                st.success("تمت المعالجة بنجاح وبسرعة فائقة! 🔥")
+                st.success("تمت المعالجة بنجاح!")
                 st.video(out_path)
 
                 with open(out_path, "rb") as file:
                     st.download_button(
-                        label="📥 تحميل الفيديو المعدل",
+                        label="📥 تحميل المقطع",
                         data=file,
                         file_name="3badiJO_Enhanced.mp4",
                         mime="video/mp4",
