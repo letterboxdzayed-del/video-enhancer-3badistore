@@ -1,4 +1,4 @@
-limport os
+import os
 import subprocess
 import tempfile
 import imageio_ffmpeg
@@ -83,10 +83,6 @@ if st.session_state.is_admin:
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # تطبيق العوامل الـ 4:
-    # 1. hqdn3d: إزالة التغبيش والنمش
-    # 2. scale=iw*2:ih*2:flags=lanczos: مضاعفة الأبعاد بدقة Lanczos
-    # 3. unsharp: توضيح التفاصيل والحواف
     vf_filter = (
         "hqdn3d=1.0:1.0:2:2,"
         "scale=iw*2:ih*2:flags=lanczos,"
@@ -103,11 +99,11 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "14",  # العامل 4: أعلى معدل بت لجودة الفيديو
+        "14",
         "-preset",
-        "ultrafast",  # السرعة الفائقة
+        "ultrafast",
         "-threads",
-        "0",  # استغلال جميع معالجات السيرفر لسرعة الإنجاز
+        "0",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
