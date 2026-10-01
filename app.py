@@ -14,7 +14,7 @@ st.set_page_config(
     layout="centered",
 )
 
-ADMIN_PASSWORD = "zayed321"
+ADMIN_PASSWORD = "zayed321abadi"
 USER_SECRET = "JBSWY3DPEHPK3PXP"
 totp = pyotp.TOTP(USER_SECRET, interval=300)
 
@@ -83,17 +83,17 @@ if st.session_state.is_admin:
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # سلسلة المعالجة حسب تعديلاتك المخصصة:
+    # سلسلة المعالجة بالقيم المعدلة:
     # 1. hqdn3d: تنظيف النمش
-    # 2. cas=0.45: حدة ذكية
-    # 3. unsharp=1.2: توضيح حواف الملامح
-    # 4. eq: كونتراست 1.04 + إضاءة 0.03 + تشبع 1.13
+    # 2. cas=0.50: حدة ذكية بارزة
+    # 3. unsharp=1.3: توضيح حواف قوي
+    # 4. eq: كونتراست 1.02 + إضاءة 0.04 + تشبع 1.15
     # 5. scale=iw*2:ih*2: مضاعفة الأبعاد بـ Lanczos
     vf_filter = (
         "hqdn3d=1.0:1.0:2:2,"
-        "cas=0.45,"
-        "unsharp=5:5:1.2:5:5:0.0,"
-        "eq=contrast=1.04:brightness=0.03:saturation=1.13,"
+        "cas=0.50,"
+        "unsharp=5:5:1.3:5:5:0.0,"
+        "eq=contrast=1.02:brightness=0.04:saturation=1.15,"
         "scale=iw*2:ih*2:flags=lanczos"
     )
 
