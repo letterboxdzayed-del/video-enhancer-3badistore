@@ -61,7 +61,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 2. القائمة الجانبية وحفل الحماية ضد الضغط (Queue Lock)
+# 2. القائمة الجانبية وقفل الحماية ضد الضغط
 # ==========================================
 st.sidebar.success(
     "🟢 أهلاً بك"
@@ -80,7 +80,6 @@ if st.session_state.is_admin:
     st.info(f"🔑 رمز المشترك الحالي: **{current_otp}**")
 
 
-# إنشاء قفل مركزي مشترك في الذاكرة لتنظيم دور المعالجة
 @st.cache_resource
 def get_global_lock():
     return threading.Lock()
@@ -106,12 +105,13 @@ def get_video_duration(ffmpeg_exe, input_path):
 
 
 # ==========================================
-# 4. دالة معالجة الجودة المحمية
+# 4. دالة معالجة الجودة
 # ==========================================
 def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
+        # إضاءة منخفضة: CAS 0.56 | Unsharp 1.40 | Contrast 1.18 | Brightness 0.09 | Saturation 1.19
         vf_filter = (
             "hqdn3d=1.5:1.5:3:3,"
             "cas=0.56,"
@@ -120,6 +120,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
+        # إضاءة عالية: CAS 0.58 | Unsharp 1.41 | Contrast 1.20 | Brightness 0.08 | Saturation 1.19
         vf_filter = (
             "hqdn3d=1.0:1.0:2:2,"
             "cas=0.58,"
@@ -142,7 +143,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-preset",
         "veryfast",
         "-threads",
-        "1",  # تقييد الخيوط لتوزيع جهد المعالج بحماية
+        "1",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -192,21 +193,25 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
 
 
 # ==========================================
-# 5. الواجهة الرئيسية مع إدارة الدور الضمني
+# 5. الواجهة الرئيسية
 # ==========================================
-uploaded_file = st.file_uploader("ارفع مقطع الفيديو:", type=["mp4", "mov"])
+st.markdown("### 💡 اختر نمط الفيديو الخاص بك، هل إضاءته عالية؟ أم منخفضة؟")
+light_option = st.radio(
+    "اختر نمط الإضاءة:",
+    ["☀️ إضاءة عالية", "🌙 إضاءة منخفضة"],
+    label_visibility="collapsed",
+)
+
+st.markdown("### 🎬 ارفع مقطع الفيديو:")
+uploaded_file = st.file_uploader(
+    "اختر مقطع فيديو:", type=["mp4", "mov"], label_visibility="collapsed"
+)
 
 if uploaded_file is not None:
     st.video(uploaded_file)
 
-    light_option = st.radio(
-        "💡 اختر نمط إضاءة الفيديو الأصلي:",
-        ["☀️️ إضاءة عالية / طبيعية", "🌙 إضاءة واطية / معتمة"],
-        help="اختر النمط المناسب لضبط الألوان والحدة بدقة فائقة.",
-    )
-
     mode_key = (
-        "low_light" if "واطية" in light_option else "high_light"
+        "low_light" if "منخفضة" in light_option else "high_light"
     )
 
     if st.button("رفع جودة المقطع 🔥"):
@@ -217,7 +222,6 @@ if uploaded_file is not None:
             "⏳ جاري تجهيز الطلب والتأكد من توفر السيرفر..."
         )
 
-        # استئذان القفل للبدء بالمعالجة دون خنق السيرفر
         with server_lock:
             status_notice.empty()
             try:
