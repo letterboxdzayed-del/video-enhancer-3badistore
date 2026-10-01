@@ -1,5 +1,6 @@
 import gc
 import os
+import re
 import subprocess
 import tempfile
 import imageio_ffmpeg
@@ -71,7 +72,7 @@ if st.sidebar.button("تسجيل الخروج"):
     st.rerun()
 
 st.title("🎬 3badiJO Engine")
-st.write("رفع جودة المقطع")
+st.write("رفع جودة المقطع وتعديل الإضاءة")
 
 if st.session_state.is_admin:
     current_otp = totp.now()
@@ -79,24 +80,47 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة معالجة الجودة بالقيم الجديدة
+# 3. دالة حساب طول الفيديو بدقة
 # ==========================================
-def enhance_video_quality(input_path, output_path):
+def get_video_duration(ffmpeg_exe, input_path):
+    cmd = [ffmpeg_exe, "-i", input_path]
+    p = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    _, stderr = p.communicate()
+    match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", stderr)
+    if match:
+        hours, minutes, seconds = map(float, match.groups())
+        return hours * 3600 + minutes * 60 + seconds
+    return None
+
+
+# ==========================================
+# 4. دالة معالجة الجودة مع شريط التقدم والنسبة المئوية
+# ==========================================
+def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # سلسلة المعالجة حسب التحديثات الأخيرة:
-    # 1. hqdn3d: تنظيف النمش والضوضاء
-    # 2. cas=0.54: حدة ذكية
-    # 3. unsharp=1.38: توضيح حواف الملامح
-    # 4. eq: كونتراست 1.19 + إضاءة 0.07 + تشبع 1.17
-    # 5. scale: تحجيم ذكي لحماية ذاكرة السيرفر
-    vf_filter = (
-        "hqdn3d=1.0:1.0:2:2,"
-        "cas=0.54,"
-        "unsharp=5:5:1.38:5:5:0.0,"
-        "eq=contrast=1.19:brightness=0.07:saturation=1.17,"
-        "scale='min(1080,iw)':-2:flags=lanczos"
-    )
+    if lighting_mode == "low_light":
+        # إعدادات الإضاءة المنخفضة حسب طلبك بالضبط:
+        # CAS: 0.56 | Unsharp: 1.40 | Contrast: 1.18 | Brightness: 0.09 | Saturation: 1.19
+        vf_filter = (
+            "hqdn3d=1.5:1.5:3:3,"
+            "cas=0.56,"
+            "unsharp=5:5:1.40:5:5:0.0,"
+            "eq=contrast=1.18:brightness=0.09:saturation=1.19,"
+            "scale='min(1080,iw)':-2:flags=lanczos"
+        )
+    else:
+        # إعدادات الإضاءة العالية حسب طلبك بالضبط:
+        # CAS: 0.58 | Unsharp: 1.41 | Contrast: 1.20 | Brightness: 0.08 | Saturation: 1.19
+        vf_filter = (
+            "hqdn3d=1.0:1.0:2:2,"
+            "cas=0.58,"
+            "unsharp=5:5:1.41:5:5:0.0,"
+            "eq=contrast=1.20:brightness=0.08:saturation=1.19,"
+            "scale='min(1080,iw)':-2:flags=lanczos"
+        )
 
     command = [
         ffmpeg_exe,
@@ -108,11 +132,11 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "20",
+        "20",  # ضغط متوازن لحجم صغير جداً
         "-preset",
-        "veryfast",
+        "veryfast",  # معالجة سريعة
         "-threads",
-        "2",
+        "2",  # أمان السيرفر من الاغلاق
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -120,57 +144,93 @@ def enhance_video_quality(input_path, output_path):
         output_path,
     ]
 
+    total_duration = get_video_duration(ffmpeg_exe, input_path)
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    status_text.text("⏳ جاري بدء معالجة الفيديو: 0%")
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    time_pattern = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")
+
     try:
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=180,
-        )
-        return result.returncode == 0
+        for line in process.stdout:
+            match = time_pattern.search(line)
+            if match and total_duration:
+                h, m, s = map(float, match.groups())
+                elapsed = h * 3600 + m * 60 + s
+                progress = min(1.0, max(0.0, elapsed / total_duration))
+                percent = int(progress * 100)
+                progress_bar.progress(progress)
+                status_text.text(f"⏳ جاري معالجة ورفع الجودة: {percent}%")
+
+        process.wait()
+        if process.returncode == 0:
+            progress_bar.progress(1.0)
+            status_text.text("✅ اكتملت المعالجة بنجاح 100%!")
+            return True
+        else:
+            status_text.text("❌ حدث خطأ أثناء معالجة الفيديو.")
+            return False
     except Exception as e:
         st.error(f"حدث خطأ أثناء المعالجة: {e}")
         return False
 
 
 # ==========================================
-# 4. الواجهة الرئيسية مع التنظيف الفوري للذاكرة
+# 5. الواجهة الرئيسية
 # ==========================================
 uploaded_file = st.file_uploader("ارفع مقطع الفيديو:", type=["mp4", "mov"])
 
 if uploaded_file is not None:
     st.video(uploaded_file)
 
+    light_option = st.radio(
+        "💡 اختر نمط إضاءة الفيديو الأصلي:",
+        ["☀️ إضاءة عالية / طبيعية", "🌙 إضاءة واطية / معتمة"],
+        help="اختر النمط المناسب لضبط الألوان والحدة بدقة فائقة.",
+    )
+
+    mode_key = (
+        "low_light" if "واطية" in light_option else "high_light"
+    )
+
     if st.button("رفع جودة المقطع 🔥"):
         in_path = None
         out_path = None
         try:
-            with st.spinner("جاري معالجة ورفع جودة الفيديو..."):
-                with tempfile.NamedTemporaryFile(
-                    delete=False, suffix=".mp4"
-                ) as in_file:
-                    in_file.write(uploaded_file.read())
-                    in_path = in_file.name
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=".mp4"
+            ) as in_file:
+                in_file.write(uploaded_file.read())
+                in_path = in_file.name
 
-                out_path = in_path.replace(".mp4", "_processed.mp4")
+            out_path = in_path.replace(".mp4", "_processed.mp4")
 
-                success = enhance_video_quality(in_path, out_path)
+            success = enhance_video_quality(
+                in_path, out_path, mode_key
+            )
 
-                if success and os.path.exists(out_path):
-                    st.success("تمت المعالجة بنجاح!")
-                    st.video(out_path)
+            if success and os.path.exists(out_path):
+                st.video(out_path)
 
-                    with open(out_path, "rb") as file:
-                        st.download_button(
-                            label="📥 تحميل المقطع",
-                            data=file,
-                            file_name="3badiJO_Enhanced.mp4",
-                            mime="video/mp4",
-                        )
-                else:
-                    st.error(
-                        "لم تتم معالجة الفيديو بنجاح. يرجى تجربة مقطع أقصر."
+                with open(out_path, "rb") as file:
+                    st.download_button(
+                        label="📥 تحميل المقطع",
+                        data=file,
+                        file_name="3badiJO_Enhanced.mp4",
+                        mime="video/mp4",
                     )
+            else:
+                st.error("لم تتم معالجة الفيديو بنجاح.")
         finally:
             if in_path and os.path.exists(in_path):
                 os.remove(in_path)
