@@ -105,25 +105,27 @@ def get_video_duration(ffmpeg_exe, input_path):
 
 
 # ==========================================
-# 4. دالة معالجة الجودة المعدلة (بدون تشويش)
+# 4. دالة معالجة الجودة وإعدادات الإضاءة
 # ==========================================
 def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إضاءة منخفضة: تنقية الضوضاء أولاً ثم تحسين ناعم للإضاءة والحدة
+        # إضاءة منخفضة: CAS 0.57 | Unsharp 1.41 | Contrast 1.19 | Brightness 0.10 | Saturation 1.20
         vf_filter = (
-            "hqdn3d=2.5:2.5:4:4,"
-            "cas=0.35,"
-            "eq=contrast=1.08:brightness=0.05:saturation=1.08,"
+            "hqdn3d=2.0:2.0:3:3,"
+            "cas=0.57,"
+            "unsharp=5:5:1.41:5:5:0.0,"
+            "eq=contrast=1.19:brightness=0.10:saturation=1.20,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: تنقية وتحسين ناعم طبيعي بدون تحبيب أو تشويش
+        # إضاءة عالية: CAS 0.59 | Unsharp 1.42 | Contrast 1.21 | Brightness 0.09 | Saturation 1.20
         vf_filter = (
             "hqdn3d=2.0:2.0:3:3,"
-            "cas=0.30,"
-            "eq=contrast=1.04:brightness=0.02:saturation=1.05,"
+            "cas=0.59,"
+            "unsharp=5:5:1.42:5:5:0.0,"
+            "eq=contrast=1.21:brightness=0.09:saturation=1.20,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
@@ -137,7 +139,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "18",  # رفع معدل الجودة وتقليل الضغط
+        "23",  # حجم فيديو قليل وسريع جداً مع الحفاظ على الجودة
         "-preset",
         "veryfast",
         "-threads",
