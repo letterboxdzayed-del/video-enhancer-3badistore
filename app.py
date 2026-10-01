@@ -120,12 +120,12 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: CAS 0.59 | Unsharp 1.42 | Contrast 1.21 | Brightness 0.09 | Saturation 1.20
+        # إضاءة عالية: CAS 0.59 | Unsharp 1.42 | Contrast 1.23 | Brightness 0.09 | Saturation 1.20
         vf_filter = (
             "hqdn3d=2.0:2.0:3:3,"
             "cas=0.59,"
             "unsharp=5:5:1.42:5:5:0.0,"
-            "eq=contrast=1.21:brightness=0.09:saturation=1.20,"
+            "eq=contrast=1.23:brightness=0.09:saturation=1.20,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
@@ -139,7 +139,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "23",  # حجم فيديو قليل وسريع جداً مع الحفاظ على الجودة
+        "23",  # حجم فيديو صغير وسريع جداً مع الحفاظ على الجودة
         "-preset",
         "veryfast",
         "-threads",
