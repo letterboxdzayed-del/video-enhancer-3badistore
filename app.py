@@ -1,14 +1,14 @@
 import os
+import subprocess
 import tempfile
 import pyotp
-import replicate
 import streamlit as st
 
 # ==========================================
 # 1. إعدادات الصفحة والأمان
 # ==========================================
 st.set_page_config(
-    page_title="3badiJO AI Engine",
+    page_title="3badiJO CC Engine",
     page_icon="🎬",
     layout="centered",
 )
@@ -24,7 +24,7 @@ if "is_admin" not in st.session_state:
 
 
 def check_auth():
-    st.title("🔒 3badiJO AI Engine")
+    st.title("🔒 3badiJO CC Engine")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
@@ -68,59 +68,96 @@ if st.sidebar.button("تسجيل الخروج"):
     st.session_state.is_admin = False
     st.rerun()
 
-st.title("🎬 3badiJO Replicate Video AI")
+st.title("🎬 3badiJO Cinematic CC Engine")
+st.caption("مُعالج الجودة السينمائية السريع (Sharpen + Contrast + Color Boost)")
 
 if st.session_state.is_admin:
-    main_tab1, main_tab2 = st.tabs(["🔑 رمز المشترك", "🎬 معالجة الفيديو"])
-    with main_tab1:
-        current_otp = totp.now()
-        st.success(f"🔑 الرمز الحالي:\n# **{current_otp}**")
-    with main_tab2:
-        st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
-else:
-    st.write("رفع جودة الفيديوهات عبر Replicate GPU API")
+    current_otp = totp.now()
+    st.info(f"🔑 رمز المشترك الحالي: **{current_otp}**")
 
 
 # ==========================================
-# 3. دالة المعالجة عبر Replicate للفيديو
+# 3. دالة معالجة الفيديو بالـ FFmpeg (سريعة جداً)
 # ==========================================
-def upscale_video_with_replicate(video_path):
-    try:
-        with open(video_path, "rb") as file:
-            # هنا تم وضع المعرف الصحيح اللي نسخته
-            output = replicate.run(
-                "lucataco/real-esrgan-video:3e56ce4b57863bd03048b42bc09bdd4db20d427cca5fde9d8ae4dc60e1bb4775",
-                input={
-                    "video": file,
-                },
-            )
-        return output
-    except Exception as e:
-        st.error(f"حدث خطأ أثناء الاتصال بـ Replicate: {e}")
-        return None
+def apply_cinematic_cc(input_path, output_path, preset_style):
+    """
+    معالجة الفيديو مباشرة باستخدام FFmpeg للسرعة العالية وبدون استهلاك رصيد.
+    """
+    # فلاتر معالجة الصورة بناءً على النمط المختاري
+    if preset_style == "سينمائي حاد (Sharpen + High Contrast)":
+        # زيادة حدة التفاصيل (unsharp)، إبراز التباين والتشبع (eq)
+        vf_filter = "unsharp=5:5:1.5:5:5:0.0,eq=contrast=1.18:brightness=0.01:saturation=1.25"
+    elif preset_style == "ألوان مشبعة 4K (Vibrant)":
+        vf_filter = "unsharp=3:3:1.0,eq=contrast=1.10:saturation=1.40:gamma=1.05"
+    else:  # توضيح ناعم (Soft Clarity)
+        vf_filter = "unsharp=3:3:0.8,eq=contrast=1.08:saturation=1.15"
+
+    # أمر FFmpeg لمعالجة الفيديو بأعلى جودة وبأسرع وقت (ultrafast preset)
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        vf_filter,
+        "-c:v",
+        "libx264",
+        "-crf",
+        "17",  # جودة مخرجات عالية جداً (Bitrate ممتاز)
+        "-preset",
+        "ultrafast",  # معالجة فائقة السرعة
+        "-c:a",
+        "copy",  # الحفاظ على الصوت كما هو
+        output_path,
+    ]
+
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return result.returncode == 0
 
 
 # ==========================================
-# 4. الواجهة والرفع (فيديو فقط)
+# 4. الواجهة الرئيسية للرفع والتعديل
 # ==========================================
 uploaded_file = st.file_uploader(
-    "ارفع مقطع فيديو لمعالجته بالـ AI:",
-    type=["mp4", "mov"],
+    "ارفع مقطع الفيديو للتعديل السينمائي:", type=["mp4", "mov"]
 )
 
 if uploaded_file is not None:
-    file_ext = uploaded_file.name.split(".")[-1].lower()
-
     st.video(uploaded_file)
 
-    if st.button("رفع جودة الفيديو بالـ AI 🔥"):
-        with st.spinner("جاري رفع الفيديو ومعالجته عبر كرت الشاشة السريع..."):
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=f".{file_ext}"
-            ) as tmp_file:
-                tmp_file.write(uploaded_file.read())
-                result_url = upscale_video_with_replicate(tmp_file.name)
+    # اختيار نمط الفلتر
+    preset = st.selectbox(
+        "اختر نمط الفلتر السينمائي (CC Preset):",
+        [
+            "سينمائي حاد (Sharpen + High Contrast)",
+            "ألوان مشبعة 4K (Vibrant)",
+            "توضيح ناعم (Soft Clarity)",
+        ],
+    )
 
-            if result_url:
-                st.success("تمت معالجة الفيديو بنجاح!")
-                st.video(result_url)
+    if st.button("معالجة الفيديو فوراً ⚡"):
+        with st.spinner("جاري تطبيق فلاتر الـ CC والحدة خلال ثوانٍ..."):
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=".mp4"
+            ) as in_file:
+                in_file.write(uploaded_file.read())
+                in_path = in_file.name
+
+            out_path = in_path.replace(".mp4", "_processed.mp4")
+
+            success = apply_cinematic_cc(in_path, out_path, preset)
+
+            if success and os.path.exists(out_path):
+                st.success("تمت المعالجة بنجاح وبسرعة فائقة! 🔥")
+                st.video(out_path)
+
+                # زر تنزيل الفيديو الناتج
+                with open(out_path, "rb") as file:
+                    st.download_button(
+                        label="📥 تحميل الفيديو المعدل",
+                        data=file,
+                        file_name="3badiJO_Enhanced.mp4",
+                        mime="video/mp4",
+                    )
+            else:
+                st.error("حدث خطأ أثناء معالجة الفيديو بواسطة FFmpeg.")
