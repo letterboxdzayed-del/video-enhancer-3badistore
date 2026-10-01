@@ -61,7 +61,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 2. القائمة الجانبية وقفل الحماية ضد الضغط
+# 2. القائمة الجانبية وقفل الحماية
 # ==========================================
 st.sidebar.success(
     "🟢 أهلاً بك"
@@ -105,27 +105,25 @@ def get_video_duration(ffmpeg_exe, input_path):
 
 
 # ==========================================
-# 4. دالة معالجة الجودة
+# 4. دالة معالجة الجودة المعدلة (بدون تشويش)
 # ==========================================
 def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إضاءة منخفضة: CAS 0.56 | Unsharp 1.40 | Contrast 1.18 | Brightness 0.09 | Saturation 1.19
+        # إضاءة منخفضة: تنقية الضوضاء أولاً ثم تحسين ناعم للإضاءة والحدة
         vf_filter = (
-            "hqdn3d=1.5:1.5:3:3,"
-            "cas=0.56,"
-            "unsharp=5:5:1.40:5:5:0.0,"
-            "eq=contrast=1.18:brightness=0.09:saturation=1.19,"
+            "hqdn3d=2.5:2.5:4:4,"
+            "cas=0.35,"
+            "eq=contrast=1.08:brightness=0.05:saturation=1.08,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: CAS 0.58 | Unsharp 1.41 | Contrast 1.20 | Brightness 0.08 | Saturation 1.19
+        # إضاءة عالية: تنقية وتحسين ناعم طبيعي بدون تحبيب أو تشويش
         vf_filter = (
-            "hqdn3d=1.0:1.0:2:2,"
-            "cas=0.58,"
-            "unsharp=5:5:1.41:5:5:0.0,"
-            "eq=contrast=1.20:brightness=0.08:saturation=1.19,"
+            "hqdn3d=2.0:2.0:3:3,"
+            "cas=0.30,"
+            "eq=contrast=1.04:brightness=0.02:saturation=1.05,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
@@ -139,7 +137,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "20",
+        "18",  # رفع معدل الجودة وتقليل الضغط
         "-preset",
         "veryfast",
         "-threads",
