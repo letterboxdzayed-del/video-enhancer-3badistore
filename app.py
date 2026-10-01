@@ -1,4 +1,4 @@
-import os
+limport os
 import subprocess
 import tempfile
 import imageio_ffmpeg
@@ -78,21 +78,19 @@ if st.session_state.is_admin:
 
 
 # ==========================================
-# 3. دالة المعالجة الفائقة (Denoise + 2x Scale + Sharpen + Balanced Color)
+# 3. دالة المعالجة فائقة السرعة بالعوامل الأربعة
 # ==========================================
 def enhance_video_quality(input_path, output_path):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-    # سلسلة المعالجة:
-    # 1. hqdn3d: تنظيف النمش والتشويش
-    # 2. scale=iw*2:ih*2: مضاعفة البكسلات بفلتر Lanczos الدقيق
-    # 3. unsharp: حدة التفاصيل (العيون والملامح)
-    # 4. eq: تباين سينمائي وتشبّع طبيعي موزون
+    # تطبيق العوامل الـ 4:
+    # 1. hqdn3d: إزالة التغبيش والنمش
+    # 2. scale=iw*2:ih*2:flags=lanczos: مضاعفة الأبعاد بدقة Lanczos
+    # 3. unsharp: توضيح التفاصيل والحواف
     vf_filter = (
-        "hqdn3d=1.5:1.5:3:3,"
+        "hqdn3d=1.0:1.0:2:2,"
         "scale=iw*2:ih*2:flags=lanczos,"
-        "unsharp=5:5:1.2:5:5:0.0,"
-        "eq=contrast=1.12:brightness=-0.01:saturation=1.15:gamma=1.02"
+        "unsharp=5:5:1.0:5:5:0.0"
     )
 
     command = [
@@ -105,9 +103,13 @@ def enhance_video_quality(input_path, output_path):
         "-c:v",
         "libx264",
         "-crf",
-        "15",  # أعلى معيار جودة فيديو وبدقة تفاصيل مرتفعة
+        "14",  # العامل 4: أعلى معدل بت لجودة الفيديو
         "-preset",
-        "ultrafast",
+        "ultrafast",  # السرعة الفائقة
+        "-threads",
+        "0",  # استغلال جميع معالجات السيرفر لسرعة الإنجاز
+        "-pix_fmt",
+        "yuv420p",
         "-c:a",
         "copy",
         output_path,
@@ -128,7 +130,7 @@ if uploaded_file is not None:
     st.video(uploaded_file)
 
     if st.button("رفع جودة المقطع 🔥"):
-        with st.spinner("جاري رفع الجودة ومعالجة التفاصيل الدقيقة..."):
+        with st.spinner("جاري معالجة ورفع جودة الفيديو بسرعة..."):
             with tempfile.NamedTemporaryFile(
                 delete=False, suffix=".mp4"
             ) as in_file:
@@ -147,7 +149,7 @@ if uploaded_file is not None:
                     st.download_button(
                         label="📥 تحميل المقطع",
                         data=file,
-                        file_name="3badiJO_4K_Enhanced.mp4",
+                        file_name="3badiJO_Enhanced.mp4",
                         mime="video/mp4",
                     )
             else:
