@@ -1,15 +1,15 @@
 import gc
+import json
 import os
 import re
 import subprocess
 import tempfile
 import threading
 import imageio_ffmpeg
-import pyotp
 import streamlit as st
 
 # ==========================================
-# 1. إعدادات الصفحة والأمان
+# 1. إعدادات الصفحة والأمان وقاعدة البيانات
 # ==========================================
 st.set_page_config(
     page_title="3badiJO Engine",
@@ -18,30 +18,64 @@ st.set_page_config(
 )
 
 ADMIN_PASSWORD = "zayed321abadi"
-USER_SECRET = "JBSWY3DPEHPK3PXP"
-totp = pyotp.TOTP(USER_SECRET, interval=300)
+USERS_FILE = "users.json"
+
+
+# دالة تحميل حسابات المشتركين
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # حسابات افتراضية في حال عدم وجود الملف
+    return {"client1": "123456", "test_user": "3badi2026"}
+
+
+# دالة حفظ حسابات المشتركين
+def save_users(users_dict):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users_dict, f, ensure_ascii=False, indent=4)
+
+
+if "users_db" not in st.session_state:
+    st.session_state.users_db = load_users()
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
+if "current_username" not in st.session_state:
+    st.session_state.current_username = ""
 
 
+# ==========================================
+# 2. نظام تسجيل الدخول ولوحة التحكم
+# ==========================================
 def check_auth():
     st.title("🔒 3badiJO Engine")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
-        user_code = st.text_input(
-            "رمز الوصول:", type="password", key="user_input"
+        username_input = st.text_input("اسم المستخدم:", key="user_name_input")
+        password_input = st.text_input(
+            "كلمة المرور:", type="password", key="user_pass_input"
         )
-        if st.button("دخول", key="btn_user"):
-            if totp.verify(user_code):
+
+        if st.button("دخول المشتركين", key="btn_user"):
+            users = st.session_state.users_db
+            if (
+                username_input in users
+                and users[username_input] == password_input
+            ):
                 st.session_state.authenticated = True
                 st.session_state.is_admin = False
+                st.session_state.current_username = username_input
+                st.success(f"أهلاً بك يا {username_input}! 👋")
                 st.rerun()
             else:
-                st.error("الرمز غير صحيح أو انتهت صلاحيته!")
+                st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
 
     with tab2:
         admin_pass = st.text_input(
@@ -51,6 +85,7 @@ def check_auth():
             if admin_pass == ADMIN_PASSWORD:
                 st.session_state.authenticated = True
                 st.session_state.is_admin = True
+                st.session_state.current_username = "المؤسس"
                 st.rerun()
             else:
                 st.error("كلمة السر غير صحيحة!")
@@ -61,23 +96,55 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 2. القائمة الجانبية وقفل الحماية
+# 3. القائمة الجانبية وإدارة الحسابات
 # ==========================================
 st.sidebar.success(
-    "🟢 أهلاً بك"
-    + (" (المؤسس)" if st.session_state.is_admin else " (مشترك)")
+    f"🟢 أهلاً بك: **{st.session_state.current_username}**"
+    + (" (المؤسس)" if st.session_state.is_admin else "")
 )
+
 if st.sidebar.button("تسجيل الخروج"):
     st.session_state.authenticated = False
     st.session_state.is_admin = False
+    st.session_state.current_username = ""
     st.rerun()
 
 st.title("🎬 3badiJO Engine")
-st.write("رفع جودة المقطع وتعديل الإضاءة")
 
+# لوحة خاصة للمؤسس لإضافة وحذف الحسابات
 if st.session_state.is_admin:
-    current_otp = totp.now()
-    st.info(f"🔑 رمز المشترك الحالي: **{current_otp}**")
+    st.markdown("---")
+    st.subheader("👑 لوحة إدارة المشتركين")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### ➕ إضافة مشترك جديد")
+        new_username = st.text_input("اسم المستخدم الجديد:", key="new_u")
+        new_password = st.text_input("كلمة المرور الجديدة:", key="new_p")
+
+        if st.button("حفظ المشترك 💾"):
+            if new_username and new_password:
+                st.session_state.users_db[new_username] = new_password
+                save_users(st.session_state.users_db)
+                st.success(f"تمت إضافة المشترك `{new_username}` بنجاح!")
+                st.rerun()
+            else:
+                st.warning("يرجى إدخال اسم المستخدم وكلمة المرور.")
+
+    with col2:
+        st.markdown("### 📋 المشتركين الحاليين")
+        users_list = st.session_state.users_db
+        for u, p in list(users_list.items()):
+            col_u, col_del = st.columns([3, 1])
+            col_u.write(f"👤 **{u}** (كلمة السر: `{p}`)")
+            if col_del.button("❌", key=f"del_{u}"):
+                del st.session_state.users_db[u]
+                save_users(st.session_state.users_db)
+                st.success(f"تم حذف المشترك {u}")
+                st.rerun()
+
+    st.markdown("---")
 
 
 @st.cache_resource
@@ -89,7 +156,7 @@ server_lock = get_global_lock()
 
 
 # ==========================================
-# 3. دالة حساب طول الفيديو بدقة
+# 4. دالة حساب طول الفيديو والمعالجة
 # ==========================================
 def get_video_duration(ffmpeg_exe, input_path):
     cmd = [ffmpeg_exe, "-i", input_path]
@@ -104,9 +171,6 @@ def get_video_duration(ffmpeg_exe, input_path):
     return None
 
 
-# ==========================================
-# 4. دالة معالجة الجودة وإعدادات الإضاءة
-# ==========================================
 def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -139,7 +203,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "23",  # حجم فيديو صغير وسريع جداً مع الحفاظ على الجودة
+        "23",
         "-preset",
         "veryfast",
         "-threads",
@@ -193,7 +257,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
 
 
 # ==========================================
-# 5. الواجهة الرئيسية
+# 5. الواجهة الرئيسية لرفع الفيديو
 # ==========================================
 st.markdown("### 💡 اختر نمط الفيديو الخاص بك، هل إضاءته عالية؟ أم منخفضة؟")
 light_option = st.radio(
