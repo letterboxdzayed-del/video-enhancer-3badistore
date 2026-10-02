@@ -130,19 +130,19 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إضاءة منخفضة: Unsharp 1.8 | Contrast 1.17 | Brightness 0.12 | Saturation 1.25 | Denoise 1.5
+        # إضاءة منخفضة: Unsharp 2.0 | Contrast 1.16 | Brightness 0.14 | Saturation 1.27 | Denoise 1.5
         vf_filter = (
             "hqdn3d=1.5:1.5:3:3,"
-            "unsharp=5:5:1.8:5:5:0.0,"
-            "eq=contrast=1.17:brightness=0.12:saturation=1.25,"
+            "unsharp=5:5:2.0:5:5:0.0,"
+            "eq=contrast=1.16:brightness=0.14:saturation=1.27,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: Unsharp 2.2 | Contrast 1.26 | Brightness 0.08 | Saturation 1.24 | Denoise 1.5
+        # إضاءة عالية: Unsharp 2.4 | Contrast 1.29 | Brightness 0.09 | Saturation 1.26 | Denoise 1.5
         vf_filter = (
             "hqdn3d=1.5:1.5:3:3,"
-            "unsharp=5:5:2.2:5:5:0.0,"
-            "eq=contrast=1.26:brightness=0.08:saturation=1.24,"
+            "unsharp=5:5:2.4:5:5:0.0,"
+            "eq=contrast=1.29:brightness=0.09:saturation=1.26,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
@@ -156,7 +156,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "18",  # إعداد جودة عام عالي التوضيح والتفاصيل
+        "18",
         "-preset",
         "veryfast",
         "-threads",
