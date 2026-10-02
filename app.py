@@ -1,5 +1,4 @@
 import gc
-import json
 import os
 import re
 import subprocess
@@ -9,7 +8,7 @@ import imageio_ffmpeg
 import streamlit as st
 
 # ==========================================
-# 1. إعدادات الصفحة والأمان وقاعدة البيانات
+# 1. إعدادات الصفحة وقاعدة بيانات المشتركين
 # ==========================================
 st.set_page_config(
     page_title="3badiJO Engine",
@@ -18,29 +17,12 @@ st.set_page_config(
 )
 
 ADMIN_PASSWORD = "zayed321abadi"
-USERS_FILE = "users.json"
 
-
-# دالة تحميل حسابات المشتركين
-def load_users():
-    if os.path.exists(USERS_FILE):
-        try:
-            with open(USERS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    # حسابات افتراضية في حال عدم وجود الملف
-    return {"client1": "123456", "test_user": "3badi2026"}
-
-
-# دالة حفظ حسابات المشتركين
-def save_users(users_dict):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users_dict, f, ensure_ascii=False, indent=4)
-
-
-if "users_db" not in st.session_state:
-    st.session_state.users_db = load_users()
+# 🔑 قائمة المشتركين الدائمة (أضف أي مشترك جديد هنا مباشرة لضمان عدم ضياعه)
+USERS_DB = {
+    "ياسين": "Yaseentikuser321",  # حساب ياسين جاهز ومحفوظ
+    "client1": "123456",
+}
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -51,23 +33,24 @@ if "current_username" not in st.session_state:
 
 
 # ==========================================
-# 2. نظام تسجيل الدخول ولوحة التحكم
+# 2. نظام تسجيل الدخول
 # ==========================================
 def check_auth():
     st.title("🔒 3badiJO Engine")
     tab1, tab2 = st.tabs(["دخول المشتركين 👤", "لوحة المؤسس 👑"])
 
     with tab1:
-        username_input = st.text_input("اسم المستخدم:", key="user_name_input")
+        username_input = st.text_input(
+            "اسم المستخدم:", key="user_name_input"
+        ).strip()
         password_input = st.text_input(
             "كلمة المرور:", type="password", key="user_pass_input"
-        )
+        ).strip()
 
         if st.button("دخول المشتركين", key="btn_user"):
-            users = st.session_state.users_db
             if (
-                username_input in users
-                and users[username_input] == password_input
+                username_input in USERS_DB
+                and USERS_DB[username_input] == password_input
             ):
                 st.session_state.authenticated = True
                 st.session_state.is_admin = False
@@ -80,7 +63,7 @@ def check_auth():
     with tab2:
         admin_pass = st.text_input(
             "كلمة سر المؤسس:", type="password", key="admin_input"
-        )
+        ).strip()
         if st.button("دخول كـ مؤسس", key="btn_admin"):
             if admin_pass == ADMIN_PASSWORD:
                 st.session_state.authenticated = True
@@ -96,7 +79,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 3. القائمة الجانبية وإدارة الحسابات
+# 3. القائمة الجانبية ولوحة المؤسس
 # ==========================================
 st.sidebar.success(
     f"🟢 أهلاً بك: **{st.session_state.current_username}**"
@@ -111,39 +94,14 @@ if st.sidebar.button("تسجيل الخروج"):
 
 st.title("🎬 3badiJO Engine")
 
-# لوحة خاصة للمؤسس لإضافة وحذف الحسابات
 if st.session_state.is_admin:
     st.markdown("---")
-    st.subheader("👑 لوحة إدارة المشتركين")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### ➕ إضافة مشترك جديد")
-        new_username = st.text_input("اسم المستخدم الجديد:", key="new_u")
-        new_password = st.text_input("كلمة المرور الجديدة:", key="new_p")
-
-        if st.button("حفظ المشترك 💾"):
-            if new_username and new_password:
-                st.session_state.users_db[new_username] = new_password
-                save_users(st.session_state.users_db)
-                st.success(f"تمت إضافة المشترك `{new_username}` بنجاح!")
-                st.rerun()
-            else:
-                st.warning("يرجى إدخال اسم المستخدم وكلمة المرور.")
-
-    with col2:
-        st.markdown("### 📋 المشتركين الحاليين")
-        users_list = st.session_state.users_db
-        for u, p in list(users_list.items()):
-            col_u, col_del = st.columns([3, 1])
-            col_u.write(f"👤 **{u}** (كلمة السر: `{p}`)")
-            if col_del.button("❌", key=f"del_{u}"):
-                del st.session_state.users_db[u]
-                save_users(st.session_state.users_db)
-                st.success(f"تم حذف المشترك {u}")
-                st.rerun()
-
+    st.subheader("👑 قائمة المشتركين الفاعلين")
+    for u, p in USERS_DB.items():
+        st.write(f"👤 **{u}** | كلمة السر: `{p}`")
+    st.caption(
+        "💡 لإضافة مشترك جديد، أضف اسمه وكلمة السر داخل `USERS_DB` في الكود مباشرة لضمان حفظه دائماً."
+    )
     st.markdown("---")
 
 
@@ -156,7 +114,7 @@ server_lock = get_global_lock()
 
 
 # ==========================================
-# 4. دالة حساب طول الفيديو والمعالجة
+# 4. دالة حساب طول الفيديو ومعالجة الجودة
 # ==========================================
 def get_video_duration(ffmpeg_exe, input_path):
     cmd = [ffmpeg_exe, "-i", input_path]
@@ -257,7 +215,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
 
 
 # ==========================================
-# 5. الواجهة الرئيسية لرفع الفيديو
+# 5. الواجهة الرئيسية
 # ==========================================
 st.markdown("### 💡 اختر نمط الفيديو الخاص بك، هل إضاءته عالية؟ أم منخفضة؟")
 light_option = st.radio(
