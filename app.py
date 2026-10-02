@@ -130,19 +130,19 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إضاءة منخفضة: Denoise 1.6 | Unsharp 2.2 | Contrast 1.17 | Brightness 0.14 | Saturation 1.28
+        # إضاءة منخفضة: Denoise 1.6 | Unsharp 2.2 | Contrast 1.18 | Brightness 0.14 | Saturation 1.28
         vf_filter = (
             "hqdn3d=1.6:1.6:3:3,"
             "unsharp=5:5:2.2:5:5:0.0,"
-            "eq=contrast=1.17:brightness=0.14:saturation=1.28,"
+            "eq=contrast=1.18:brightness=0.14:saturation=1.28,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: Denoise 1.8 | Unsharp 2.5 | Contrast 1.27 | Brightness 0.09 | Saturation 1.27
+        # إضاءة عالية: Denoise 1.8 | Unsharp 2.5 | Contrast 1.29 | Brightness 0.09 | Saturation 1.27
         vf_filter = (
             "hqdn3d=1.8:1.8:3:3,"
             "unsharp=5:5:2.5:5:5:0.0,"
-            "eq=contrast=1.27:brightness=0.09:saturation=1.27,"
+            "eq=contrast=1.29:brightness=0.09:saturation=1.27,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
