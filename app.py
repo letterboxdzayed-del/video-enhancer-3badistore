@@ -18,9 +18,9 @@ st.set_page_config(
 
 ADMIN_PASSWORD = "zayed321abadi"
 
-# 🔑 قائمة المشتركين الدائمة (أضف أي مشترك جديد هنا مباشرة لضمان عدم ضياعه)
+# 🔑 قائمة المشتركين الدائمة
 USERS_DB = {
-    "ياسين": "Yaseentikuser321",  # حساب ياسين جاهز ومحفوظ
+    "ياسين": "Yaseentikuser321",
     "client1": "123456",
 }
 
@@ -79,7 +79,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 3. القائمة الجانبية ولوحة المؤسس
+# 3. القائمة الجانبية
 # ==========================================
 st.sidebar.success(
     f"🟢 أهلاً بك: **{st.session_state.current_username}**"
@@ -99,9 +99,6 @@ if st.session_state.is_admin:
     st.subheader("👑 قائمة المشتركين الفاعلين")
     for u, p in USERS_DB.items():
         st.write(f"👤 **{u}** | كلمة السر: `{p}`")
-    st.caption(
-        "💡 لإضافة مشترك جديد، أضف اسمه وكلمة السر داخل `USERS_DB` في الكود مباشرة لضمان حفظه دائماً."
-    )
     st.markdown("---")
 
 
@@ -133,21 +130,19 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     if lighting_mode == "low_light":
-        # إضاءة منخفضة: CAS 0.57 | Unsharp 1.41 | Contrast 1.19 | Brightness 0.10 | Saturation 1.20
+        # إضاءة منخفضة: Unsharp 1.8 | Contrast 1.17 | Brightness 0.12 | Saturation 1.25 | Denoise 1.5
         vf_filter = (
-            "hqdn3d=2.0:2.0:3:3,"
-            "cas=0.57,"
-            "unsharp=5:5:1.41:5:5:0.0,"
-            "eq=contrast=1.19:brightness=0.10:saturation=1.20,"
+            "hqdn3d=1.5:1.5:3:3,"
+            "unsharp=5:5:1.8:5:5:0.0,"
+            "eq=contrast=1.17:brightness=0.12:saturation=1.25,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
     else:
-        # إضاءة عالية: CAS 0.59 | Unsharp 1.42 | Contrast 1.23 | Brightness 0.09 | Saturation 1.20
+        # إضاءة عالية: Unsharp 2.2 | Contrast 1.26 | Brightness 0.08 | Saturation 1.24 | Denoise 1.5
         vf_filter = (
-            "hqdn3d=2.0:2.0:3:3,"
-            "cas=0.59,"
-            "unsharp=5:5:1.42:5:5:0.0,"
-            "eq=contrast=1.23:brightness=0.09:saturation=1.20,"
+            "hqdn3d=1.5:1.5:3:3,"
+            "unsharp=5:5:2.2:5:5:0.0,"
+            "eq=contrast=1.26:brightness=0.08:saturation=1.24,"
             "scale='min(1080,iw)':-2:flags=lanczos"
         )
 
@@ -161,7 +156,7 @@ def enhance_video_quality(input_path, output_path, lighting_mode):
         "-c:v",
         "libx264",
         "-crf",
-        "23",
+        "18",  # إعداد جودة عام عالي التوضيح والتفاصيل
         "-preset",
         "veryfast",
         "-threads",
