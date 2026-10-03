@@ -21,6 +21,7 @@ ADMIN_PASSWORD = "zayed321abadi"
 # 🔑 قائمة المشتركين الدائمة
 USERS_DB = {
     "ياسين": "Yaseentikuser321",
+    "دمشق": "dimashg322",
     "client1": "123456",
 }
 
